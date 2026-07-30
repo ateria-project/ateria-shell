@@ -18,6 +18,7 @@ Singleton {
 
     signal eventReceived(var event)
     signal eventParseFailed(string line, string message)
+    signal eventApplyFailed(var event, string message)
 
     function normalizeWorkspace(workspace: var): var {
         const activeWindowId = workspace.active_window_id ?? null;
@@ -35,18 +36,32 @@ Singleton {
         };
     }
 
-    function updateWorkspace(workspace: var, changes: var): var {
-        return {
-            id: workspace.id,
-            index: workspace.index,
-            name: workspace.name,
-            output: workspace.output,
-            active: changes.active !== undefined ? changes.active : workspace.active,
-            focused: changes.focused !== undefined ? changes.focused : workspace.focused,
-            urgent: changes.urgent !== undefined ? changes.urgent : workspace.urgent,
-            occupied: changes.occupied !== undefined ? changes.occupied : workspace.occupied,
-            activeWindowId: changes.activeWindowId !== undefined ? changes.activeWindowId : workspace.activeWindowId
-        };
+    function patchWorkspaceById(workspaceId: var, changes: var): void {
+        const index = root.workspaces.findIndex(workspace => workspace.id === workspaceId);
+
+        if (index < 0)
+            return;
+
+        const workspace = root.workspaces[index];
+        const keys = Object.keys(changes);
+
+        let changed = false;
+
+        for (const key of keys) {
+            if (workspace[key] !== changes[key]) {
+                changed = true;
+                break;
+            }
+        }
+
+        if (!changed)
+            return;
+
+        const nextWorkspaces = root.workspaces.slice();
+
+        nextWorkspaces[index] = Object.assign({}, workspace, changes);
+
+        root.workspaces = nextWorkspaces;
     }
 
     function handleEventLine(line: string): void {
@@ -55,14 +70,10 @@ Singleton {
         if (trimmedLine.length === 0)
             return;
 
+        let event;
+
         try {
-            const event = JSON.parse(trimmedLine);
-
-            root.connected = true;
-            root.lastError = "";
-
-            root.eventReceived(event);
-            root.applyEvent(event);
+            event = JSON.parse(trimmedLine);
         } catch (error) {
             const message = String(error);
 
@@ -70,108 +81,163 @@ Singleton {
             root.eventParseFailed(trimmedLine, message);
 
             console.warn("Could not parse Niri event:", message, trimmedLine);
+
+            return;
+        }
+
+        root.connected = true;
+        root.lastError = "";
+        root.eventReceived(event);
+
+        try {
+            root.applyEvent(event);
+        } catch (error) {
+            const message = String(error);
+
+            root.lastError = message;
+            root.eventApplyFailed(event, message);
+
+            console.error("Could not apply Niri event:", message, JSON.stringify(event));
         }
     }
 
     function applyEvent(event: var): void {
-        if (event.WorkspacesChanged !== undefined) {
-            const payload = event.WorkspacesChanged;
-            const incoming = payload.workspaces ?? [];
-
-            root.workspaces = incoming.map(workspace => root.normalizeWorkspace(workspace)).sort((left, right) => {
-                if (left.output === right.output)
-                    return left.index - right.index;
-
-                return left.output.localeCompare(right.output);
-            });
-
-            console.info("Loaded", root.workspaces.length, "Niri workspaces on outputs:", root.workspaces.map(workspace => workspace.output).filter((output, index, outputs) => output.length > 0 && outputs.indexOf(output) === index).join(", "));
-
-            return;
+        if (event === null || typeof event !== "object" || Array.isArray(event)) {
+            throw new Error("Expected a Niri event object");
         }
 
-        if (event.WorkspaceActivated !== undefined) {
-            const payload = event.WorkspaceActivated;
-            const target = root.workspaces.find(workspace => workspace.id === Number(payload.id));
+        const eventType = Object.keys(event)[0];
+        const payload = event[eventType];
 
-            if (target === undefined)
+        switch (eventType) {
+        case "WorkspacesChanged":
+            {
+                const incoming = payload.workspaces ?? [];
+
+                root.workspaces = incoming.map(workspace => root.normalizeWorkspace(workspace)).sort((left, right) => {
+                    if (left.output === right.output)
+                        return left.index - right.index;
+
+                    return left.output.localeCompare(right.output);
+                });
+
                 return;
+            }
+        case "WorkspaceActivated":
+            {
+                const targetId = Number(payload.id);
+                const target = root.workspaces.find(workspace => workspace.id === targetId);
 
-            root.workspaces = root.workspaces.map(workspace => root.updateWorkspace(workspace, {
-                    active: workspace.output === target.output ? workspace.id === target.id : workspace.active,
-                    focused: payload.focused ? workspace.id === target.id : workspace.focused
-                }));
+                if (target === undefined)
+                    return;
 
-            return;
-        }
+                const becomesFocused = Boolean(payload.focused);
+                let nextWorkspaces = null;
 
-        if (event.WorkspaceUrgencyChanged !== undefined) {
-            const payload = event.WorkspaceUrgencyChanged;
-            const workspaceId = Number(payload.id);
+                for (let index = 0; index < root.workspaces.length; ++index) {
+                    const workspace = root.workspaces[index];
 
-            root.workspaces = root.workspaces.map(workspace => root.updateWorkspace(workspace, {
-                    urgent: workspace.id === workspaceId ? Boolean(payload.urgent) : workspace.urgent
-                }));
+                    const active = workspace.output === target.output ? workspace.id === targetId : workspace.active;
 
-            return;
-        }
+                    const focused = becomesFocused ? workspace.id === targetId : workspace.focused;
 
-        if (event.WorkspaceActiveWindowChanged !== undefined) {
-            const payload = event.WorkspaceActiveWindowChanged;
-            const workspaceId = Number(payload.workspace_id);
+                    if (active === workspace.active && focused === workspace.focused) {
+                        continue;
+                    }
 
-            root.workspaces = root.workspaces.map(workspace => {
-                if (workspace.id !== workspaceId)
-                    return workspace;
+                    if (nextWorkspaces === null)
+                        nextWorkspaces = root.workspaces.slice();
 
+                    nextWorkspaces[index] = Object.assign({}, workspace, {
+                        active: active,
+                        focused: focused
+                    });
+                }
+
+                if (nextWorkspaces !== null)
+                    root.workspaces = nextWorkspaces;
+
+                return;
+            }
+        case "WorkspaceUrgencyChanged":
+            {
+                root.patchWorkspaceById(Number(payload.id), {
+                    urgent: Boolean(payload.urgent)
+                });
+
+                return;
+            }
+        case "WorkspaceActiveWindowChanged":
+            {
                 const activeWindowId = payload.active_window_id ?? null;
 
-                return root.updateWorkspace(workspace, {
+                root.patchWorkspaceById(Number(payload.workspace_id), {
                     activeWindowId: activeWindowId,
                     occupied: activeWindowId !== null
                 });
-            });
+
+                return;
+            }
+        default:
+            // Niri may add new event variants in the future.
+            return;
         }
+    }
+
+    function handleStreamError(data: var): void {
+        const message = String(data).trim();
+
+        if (message.length === 0)
+            return;
+
+        root.lastError = message;
+
+        console.warn("Niri event stream:", message);
+    }
+
+    function runAction(process: var, action: string, args: var): void {
+        process.exec(["niri", "msg", "action", action].concat(args ?? []));
     }
 
     function focusWorkspace(workspaceIndex: int, outputName: string): void {
         if (workspaceIndex < 1)
             return;
 
-        root.pendingWorkspaceIndex = workspaceIndex;
+        const focusedWorkspace = root.workspaces.find(workspace => workspace.focused);
 
-        const currentFocusedWorkspace = root.workspaces.find(workspace => workspace.focused);
-        const currentOutput = currentFocusedWorkspace ? currentFocusedWorkspace.output : "";
+        const currentOutput = focusedWorkspace ? focusedWorkspace.output.trim() : "";
 
-        const needsMonitorFocus = outputName.length > 0 && currentOutput.length > 0 && outputName.trim().toLowerCase() !== currentOutput.trim().toLowerCase();
+        const targetOutput = outputName.trim();
 
-        // Workspace indices are local to each monitor. Focus the target
-        // monitor first only when clicking a bar on another output.
+        const needsMonitorFocus = targetOutput.length > 0 && targetOutput.toLowerCase() !== currentOutput.toLowerCase();
+
         if (needsMonitorFocus) {
-            focusMonitorProcess.exec(["niri", "msg", "action", "focus-monitor", outputName]);
+            root.pendingWorkspaceIndex = workspaceIndex;
+
+            root.runAction(focusMonitorProcess, "focus-monitor", [targetOutput]);
 
             return;
         }
 
-        root.runFocusWorkspace(workspaceIndex);
         root.pendingWorkspaceIndex = -1;
+        root.runFocusWorkspace(workspaceIndex);
     }
 
     function runFocusWorkspace(workspaceIndex: int): void {
-        focusWorkspaceProcess.exec(["niri", "msg", "action", "focus-workspace", String(workspaceIndex)]);
+        root.runAction(focusWorkspaceProcess, "focus-workspace", [String(workspaceIndex)]);
     }
 
     function quit(): void {
-        if (!quitProcess.running)
-            quitProcess.exec(["niri", "msg", "action", "quit", "--skip-confirmation"]);
+        if (quitProcess.running)
+            return;
+
+        root.runAction(quitProcess, "quit", ["--skip-confirmation"]);
     }
 
     Process {
         id: eventStream
 
         command: ["niri", "msg", "--json", "event-stream"]
-
-        running: false
 
         stdout: SplitParser {
             splitMarker: "\n"
@@ -182,16 +248,7 @@ Singleton {
         stderr: SplitParser {
             splitMarker: "\n"
 
-            onRead: data => {
-                const message = String(data).trim();
-
-                if (message.length === 0)
-                    return;
-
-                root.lastError = message;
-
-                console.warn("Niri event stream:", message);
-            }
+            onRead: data => root.handleStreamError(data)
         }
 
         onExited: {
@@ -215,13 +272,23 @@ Singleton {
     Process {
         id: focusMonitorProcess
 
-        onExited: {
-            if (root.pendingWorkspaceIndex < 1)
-                return;
-
-            root.runFocusWorkspace(root.pendingWorkspaceIndex);
+        onExited: (exitCode, exitStatus) => {
+            const workspaceIndex = root.pendingWorkspaceIndex;
 
             root.pendingWorkspaceIndex = -1;
+
+            if (workspaceIndex < 1)
+                return;
+
+            if (exitCode !== 0) {
+                root.lastError = "Could not focus monitor; exit code " + exitCode;
+
+                console.warn(root.lastError, "status:", exitStatus);
+
+                return;
+            }
+
+            root.runFocusWorkspace(workspaceIndex);
         }
     }
 
