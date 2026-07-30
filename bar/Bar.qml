@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
 import qs.components
 import qs.core
@@ -13,7 +12,15 @@ Variants {
 
         required property var modelData
 
-        screen: modelData
+        readonly property string outputName: window.modelData.name
+        readonly property var visibleWorkspaces: {
+            const allWorkspaces = NiriService.workspaces;
+            const filteredWorkspaces = allWorkspaces.filter(workspace => workspace.output === window.outputName);
+
+            return filteredWorkspaces.length > 0 ? filteredWorkspaces : allWorkspaces;
+        }
+
+        screen: window.modelData
         implicitHeight: 38
         color: Theme.scheme.surface
 
@@ -23,29 +30,20 @@ Variants {
             right: true
         }
 
-        Item {
-            anchors.fill: parent
-            anchors.leftMargin: 6
-            anchors.rightMargin: 6
-
-            WorkspacesWidget {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-
-                workspaces: {
-                    const filtered = NiriService.workspaces.filter(w => {
-                        return w.output === window.screen.name;
-                    });
-                    return filtered.length > 0 ? filtered : NiriService.workspaces;
-                }
-                onWorkspaceRequested: workspaceIndex => {
-                    NiriService.focusWorkspace(workspaceIndex, window.screen.name);
-                }
+        WorkspacesWidget {
+            anchors {
+                left: parent.left
+                leftMargin: 6
+                verticalCenter: parent.verticalCenter
             }
 
-            ClockWidget {
-                anchors.centerIn: parent
-            }
+            workspaces: window.visibleWorkspaces
+
+            onWorkspaceRequested: workspaceIndex => NiriService.focusWorkspace(workspaceIndex, window.outputName)
+        }
+
+        ClockWidget {
+            anchors.centerIn: parent
         }
     }
 }
