@@ -114,7 +114,26 @@ Singleton {
     readonly property string wifiIconName: {
         if (!root.wifiEnabled)
             return "signal_wifi_off";
-        return "network_wifi";
+        if (!root.wifiConnected) {
+            if (root.scanning)
+                return "wifi_find";
+            return "signal_wifi_statusbar_not_connected";
+        }
+        if (root.limitedConnectivity || root.captivePortal)
+            return "signal_wifi_bad";
+
+        const strength = root.connectedWifiNetwork ? root.connectedWifiNetwork.signalStrength * 100 : 100;
+        if (strength < 5)
+            return "signal_wifi_0_bar";
+        if (strength < 20)
+            return "network_wifi_1_bar";
+        if (strength < 40)
+            return "network_wifi_2_bar";
+        if (strength < 65)
+            return "network_wifi_3_bar";
+        if (strength < 80)
+            return "network_wifi";
+        return "signal_wifi_4_bar";
     }
     readonly property string wifiStatusText: {
         if (!root.available)

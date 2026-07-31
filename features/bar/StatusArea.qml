@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import qs.components
 import qs.platform.audio
+import qs.platform.network
 import qs.platform.power
 import qs.shell
 import qs.theme
@@ -22,7 +23,7 @@ AbstractButton {
     scale: root.down ? 0.96 : 1
 
     Component.onCompleted: {
-        SurfaceController.openQuickSettings(root.screen)
+        SurfaceController.openQuickSettings(root.screen);
     }
 
     HoverHandler {
@@ -62,8 +63,8 @@ AbstractButton {
 
         M3Icon {
             anchors.verticalCenter: parent.verticalCenter
-            name: "network_wifi"
-            size: 18
+            name: NetworkService.wiredConnected ? "settings_ethernet" : NetworkService.wifiIconName
+            size: NetworkService.wiredConnected ? 20 : 18
             opticalSize: 20
             weight: 500
             grade: 0
@@ -74,7 +75,7 @@ AbstractButton {
         M3Icon {
             anchors.verticalCenter: parent.verticalCenter
             name: AudioService.outputIconName
-            size: 18
+            size: 20
             opticalSize: 20
             weight: 500
             grade: 0
