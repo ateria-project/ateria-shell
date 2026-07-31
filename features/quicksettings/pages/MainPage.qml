@@ -84,7 +84,7 @@ Rectangle {
 
         // Volume and brightness slider area
         ColumnLayout {
-            spacing: 10
+            spacing: 8
 
             RowLayout {
                 spacing: 32
@@ -110,6 +110,10 @@ Rectangle {
                     iconSize: 24
 
                     style: M3Button.Text
+                    onClicked: {
+                        if (root.controller)
+                            root.controller.pushPage("audio");
+                    }
                 }
             }
 
@@ -139,6 +143,10 @@ Rectangle {
                     iconSize: 24
 
                     style: M3Button.Text
+                    onClicked: {
+                        if (root.controller)
+                            root.controller.pushPage("brightness");
+                    }
                 }
             }
         }
