@@ -5,7 +5,9 @@ import qs.components
 import qs.features.quicksettings.components
 import qs.features.quicksettings.tiles
 import qs.platform.audio
+import qs.platform.bluetooth
 import qs.platform.display
+import qs.platform.network
 import qs.platform.power
 import Quickshell.Services.UPower
 import qs.shell
@@ -46,12 +48,13 @@ Rectangle {
             columnSpacing: 8
 
             QuickSettingsTile {
-                active: false
-                iconName: "network_wifi"
+                active: NetworkService.wifiEnabled
+                iconName: NetworkService.wifiIconName
                 title: "Wi-Fi"
-                subtitle: "Medium"
+                subtitle: NetworkService.wifiStatusText
                 showDetails: true
                 Layout.fillWidth: true
+                onClicked: NetworkService.setWifiEnabled(!NetworkService.wifiEnabled)
             }
 
             QuickSettingsTile {
@@ -64,12 +67,13 @@ Rectangle {
             }
 
             QuickSettingsTile {
-                active: true
-                iconName: "bluetooth"
+                active: BluetoothService.enabled
+                iconName: BluetoothService.iconName
                 title: "Bluetooth"
-                subtitle: "On"
+                subtitle: BluetoothService.statusText
                 showDetails: true
                 Layout.fillWidth: true
+                onClicked: BluetoothService.toggleEnabled()
             }
 
             QuickSettingsTile {

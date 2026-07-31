@@ -43,10 +43,19 @@ Singleton {
         case BluetoothAdapterState.Disabling:
             return "Turning off";
         case BluetoothAdapterState.Enabled:
+            if (root.connectedCount === 1 && root.connectedDevices.length > 0)
+                return root.deviceName(root.connectedDevices[0]);
             return root.hasConnectedDevice ? root.connectedCount + " connected" : "On";
         default:
             return "Off";
         }
+    }
+    readonly property string iconName: {
+        if (!root.enabled)
+            return "bluetooth_disabled";
+        if (root.hasConnectedDevice)
+            return "bluetooth_connected";
+        return "bluetooth";
     }
 
     // Adapter controls

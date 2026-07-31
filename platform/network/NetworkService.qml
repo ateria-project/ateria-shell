@@ -111,6 +111,22 @@ Singleton {
         return device.network ?? null;
     }
     readonly property var activeNetwork: root.connectedWiredNetwork ?? root.connectedWifiNetwork
+    readonly property string wifiIconName: {
+        if (!root.wifiEnabled)
+            return "signal_wifi_off";
+        return "network_wifi";
+    }
+    readonly property string wifiStatusText: {
+        if (!root.available)
+            return "Unavailable";
+        if (!root.wifiEnabled)
+            return "Off";
+        if (root.wifiConnected && root.connectedWifiNetwork && root.connectedWifiNetwork.name.length > 0)
+            return root.connectedWifiNetwork.name;
+        if (root.wifiConnected)
+            return "Connected";
+        return "Not connected";
+    }
     // Native Quickshell connection operation state
     property var pendingNetwork: null
     readonly property bool nativeConnectionBusy: root.pendingNetwork !== null && root.pendingNetwork.stateChanging
