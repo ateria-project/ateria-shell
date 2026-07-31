@@ -96,6 +96,8 @@ AbstractButton {
         }
 
         M3Icon {
+            id: recordIcon
+
             anchors.verticalCenter: parent.verticalCenter
             visible: root.recording
             name: "screen_record"
@@ -105,6 +107,25 @@ AbstractButton {
             grade: 0
             filled: true
             color: Theme.scheme.error
+
+            SequentialAnimation on opacity {
+                running: root.recording && recordIcon.visible
+                loops: Animation.Infinite
+
+                NumberAnimation {
+                    from: 1.0
+                    to: 0.4
+                    duration: 1000
+                    easing.type: Easing.InOutSine
+                }
+
+                NumberAnimation {
+                    from: 0.4
+                    to: 1.0
+                    duration: 1000
+                    easing.type: Easing.InOutSine
+                }
+            }
         }
     }
 
