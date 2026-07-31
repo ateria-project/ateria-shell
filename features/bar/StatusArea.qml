@@ -64,7 +64,7 @@ AbstractButton {
         M3Icon {
             anchors.verticalCenter: parent.verticalCenter
             name: NetworkService.wiredConnected ? "settings_ethernet" : NetworkService.wifiIconName
-            size: NetworkService.wiredConnected ? 20 : 18
+            size: NetworkService.wiredConnected ? 22 : 18
             opticalSize: 20
             weight: 500
             grade: 0
