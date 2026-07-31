@@ -1,5 +1,6 @@
 pragma Singleton
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.UPower
 
 Singleton {
@@ -160,5 +161,26 @@ Singleton {
             root.usePowerSaver();
             break;
         }
+    }
+
+    Process {
+        id: actionProcess
+
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0)
+                console.warn("PowerService: action exited with code", exitCode, "status:", exitStatus);
+        }
+    }
+
+    function shutdown() {
+        actionProcess.exec(["systemctl", "poweroff"]);
+    }
+
+    function reboot() {
+        actionProcess.exec(["systemctl", "reboot"]);
+    }
+
+    function lock() {
+        actionProcess.exec(["loginctl", "lock-session"]);
     }
 }

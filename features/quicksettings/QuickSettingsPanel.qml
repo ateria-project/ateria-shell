@@ -13,8 +13,8 @@ PanelWindow {
     screen: SurfaceController.activeScreen
     visible: open
     color: "transparent"
-    implicitWidth: 300
-    implicitHeight: 200
+    implicitWidth: mainPage.implicitWidth
+    implicitHeight: mainPage.implicitHeight
     onOpenChanged: {
         if (!open)
             controller.reset();
@@ -35,6 +35,7 @@ PanelWindow {
     }
 
     MainPage {
+        id: mainPage
         anchors.fill: parent
         controller: controller
     }

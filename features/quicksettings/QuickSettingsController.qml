@@ -5,7 +5,6 @@ QtObject {
 
     property string currentPage: "main"
     property var pageStack: []
-    property bool editMode: false
 
     function pushPage(page: string) {
         const stack = root.pageStack.slice();
@@ -26,6 +25,5 @@ QtObject {
     function reset() {
         root.currentPage = "main";
         root.pageStack = [];
-        root.editMode = false;
     }
 }

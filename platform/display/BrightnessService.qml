@@ -51,6 +51,43 @@ Singleton {
         }) ?? null;
     }
 
+    function displayForScreen(screen) {
+        if (!screen || !Array.isArray(root.displays) || root.displays.length === 0)
+            return root.primaryDisplay;
+
+        const screenName = String(screen.name ?? "").trim().toLowerCase();
+        const isInternalScreen = /^(edp|lvds|dsi)/i.test(screenName) || screenName.includes("internal");
+
+        if (isInternalScreen && root.internalDisplays.length > 0)
+            return root.internalDisplays[0];
+
+        const screenModel = String(screen.model ?? "").trim().toLowerCase();
+        const screenSerial = String(screen.serialNumber ?? screen.serial ?? "").trim().toLowerCase();
+
+        if (screenSerial.length > 0) {
+            const bySerial = root.externalDisplays.find(display => {
+                const displaySerial = String(display.serial ?? "").trim().toLowerCase();
+                return displaySerial.length > 0 && displaySerial === screenSerial;
+            });
+            if (bySerial !== undefined)
+                return bySerial;
+        }
+
+        if (screenModel.length > 0) {
+            const byModel = root.externalDisplays.find(display => {
+                const displayModel = String(display.model ?? "").trim().toLowerCase();
+                return displayModel.length > 0 && (displayModel === screenModel || screenModel.includes(displayModel) || displayModel.includes(screenModel));
+            });
+            if (byModel !== undefined)
+                return byModel;
+        }
+
+        if (!isInternalScreen && root.externalDisplays.length > 0)
+            return root.externalDisplays[0];
+
+        return root.primaryDisplay;
+    }
+
     function readableName(name: string): string {
         const normalized = String(name ?? "").replace(/[_-]+/g, " ").trim();
         if (normalized.length === 0)
@@ -354,6 +391,35 @@ Singleton {
     function setAllBrightness(value: real) {
         for (const display of root.displays)
             root.setBrightness(display.id, value);
+    }
+
+    function brightnessForScreen(screen): real {
+        const display = root.displayForScreen(screen);
+        return display !== null ? display.brightness : 0;
+    }
+
+    function setScreenBrightness(screen, value: real): bool {
+        const display = root.displayForScreen(screen);
+        if (display === null)
+            return false;
+
+        return root.setBrightness(display.id, value);
+    }
+
+    function increaseScreenBrightness(screen): bool {
+        const display = root.displayForScreen(screen);
+        if (display === null)
+            return false;
+
+        return root.increaseBrightness(display.id);
+    }
+
+    function decreaseScreenBrightness(screen): bool {
+        const display = root.displayForScreen(screen);
+        if (display === null)
+            return false;
+
+        return root.decreaseBrightness(display.id);
     }
 
     // Internal writes
