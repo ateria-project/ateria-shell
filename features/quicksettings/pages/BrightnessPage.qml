@@ -74,7 +74,7 @@ Rectangle {
                 M3Text {
                     width: parent.width
                     text: {
-                        const subtext = rowRoot.monitor.type === "internal" ? "Internal" : "External";
+                        const subtext = rowRoot.monitor.type === "internal" ? "Built-in display" : "External";
                         return subtext;
                     }
                     color: Theme.scheme.onSurfaceVariant
