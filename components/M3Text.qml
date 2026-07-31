@@ -1,7 +1,5 @@
 import QtQuick
-import QtQuick.Layouts
-import Quickshell
-import qs.core
+import qs.theme
 
 Text {
     color: Theme.scheme.onSurface

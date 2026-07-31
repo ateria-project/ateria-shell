@@ -1,6 +1,5 @@
-pragma Singleton
-
 import Quickshell
+pragma Singleton
 
 Singleton {
     readonly property int spacingXs: 4

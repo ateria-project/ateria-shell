@@ -16,7 +16,7 @@ Singleton {
     readonly property int easingStandard: Easing.BezierSpline
     readonly property list<real> standardCurve: [0.2, 0.0, 0.0, 1.0, 1.0, 1.0]
     readonly property int easingStandardDecelerate: Easing.BezierSpline
-    readonly property list<real> standardDecelerateCurve: [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
+    readonly property var standardDecelerateCurve: [0, 0, 0, 1, 1, 1]
     readonly property int easingStandardAccelerate: Easing.BezierSpline
     readonly property list<real> standardAccelerateCurve: [0.3, 0.0, 1.0, 1.0, 1.0, 1.0]
 

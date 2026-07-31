@@ -1,7 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.components
-import qs.core
+import qs.theme
 
 M3Text {
     text: Qt.formatDateTime(clock.date, "dddd, d MMMM   •   h:mm AP")

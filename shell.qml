@@ -1,8 +1,7 @@
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
-import qs.bar
+import qs.shell
 
 ShellRoot {
-    Bar {}
+    Shell {}
 }

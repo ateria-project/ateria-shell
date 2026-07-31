@@ -1,10 +1,8 @@
-pragma ComponentBehavior: Bound
-
 import QtQuick
 import QtQuick.Controls
 import Quickshell
 import qs.components
-import qs.core
+import qs.theme
 
 Rectangle {
     id: root
@@ -14,7 +12,6 @@ Rectangle {
     readonly property int barHeight: 28
     readonly property int indicatorSize: 28
     readonly property var items: root.workspaces ?? []
-
     readonly property var workspaceLayout: {
         const source = root.items;
         const runs = [];
