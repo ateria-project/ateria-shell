@@ -36,6 +36,34 @@ Singleton {
     readonly property string model: root.hasBattery ? root.battery.model : ""
     // Raw icon name supplied by UPower for system icon themes.
     readonly property string systemIconName: root.hasBattery ? root.battery.iconName : ""
+    readonly property string batteryIconName: {
+        if (!root.hasBattery)
+            return "battery_android_question";
+
+        if (root.charging || root.fullyCharged)
+            return "bolt_boost";
+
+        if (root.critical)
+            return "battery_android_alert";
+
+        const pct = root.percentageRounded;
+        if (pct >= 95)
+            return "battery_android_full";
+        if (pct >= 85)
+            return "battery_android_6";
+        if (pct >= 70)
+            return "battery_android_5";
+        if (pct >= 55)
+            return "battery_android_4";
+        if (pct >= 40)
+            return "battery_android_3";
+        if (pct >= 25)
+            return "battery_android_2";
+        if (pct >= 10)
+            return "battery_android_1";
+
+        return "battery_android_0";
+    }
     readonly property string stateText: {
         switch (root.state) {
         case UPowerDeviceState.Charging:

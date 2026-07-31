@@ -90,7 +90,7 @@ Rectangle {
                 spacing: 32
 
                 M3Slider {
-                    iconName: "volume_up"
+                    iconName: AudioService.outputIconName
                     iconFilled: false
                     iconSize: 24
 

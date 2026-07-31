@@ -25,6 +25,12 @@ Singleton {
     readonly property real outputVolume: root.outputAudio !== null ? root.outputAudio.volume : 0
     readonly property int outputVolumePercent: Math.round(root.outputVolume * 100)
     readonly property bool outputMuted: root.outputAudio !== null && root.outputAudio.muted
+    readonly property string outputIconName: {
+        if (root.outputMuted || root.outputVolume <= 0)
+            return "volume_off";
+
+        return "volume_up";
+    }
     readonly property string outputName: root.nodeLabel(root.outputNode)
     // Input state
     readonly property real inputVolume: root.inputAudio !== null ? root.inputAudio.volume : 0

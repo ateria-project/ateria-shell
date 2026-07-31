@@ -1,6 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import qs.components
+import qs.platform.audio
+import qs.platform.power
 import qs.shell
 import qs.theme
 
@@ -71,7 +73,7 @@ AbstractButton {
 
         M3Icon {
             anchors.verticalCenter: parent.verticalCenter
-            name: "volume_up"
+            name: AudioService.outputIconName
             size: 18
             opticalSize: 20
             weight: 500
@@ -82,14 +84,14 @@ AbstractButton {
 
         M3Icon {
             anchors.verticalCenter: parent.verticalCenter
-            visible: root.hasBattery
-            name: "battery_android_full"
+            visible: root.hasBattery && PowerService.hasBattery
+            name: PowerService.batteryIconName
             size: 20
             opticalSize: 20
             weight: 500
             grade: 0
             filled: false
-            color: root.iconColor
+            color: PowerService.critical ? Theme.scheme.error : root.iconColor
         }
 
         M3Icon {
