@@ -3,10 +3,21 @@ import Quickshell
 import qs.features.bar
 import qs.features.calendar
 import qs.features.quicksettings
+import qs.features.wallpaper
 import qs.shell
 
 Scope {
     id: root
+
+    Variants {
+        model: Quickshell.screens
+
+        Wallpaper {
+            required property var modelData
+
+            screen: modelData
+        }
+    }
 
     Variants {
         model: Quickshell.screens
