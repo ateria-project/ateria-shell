@@ -16,6 +16,7 @@ PanelWindow {
         bottom: true
     }
 
+    WlrLayershell.exclusiveZone: -1
     WlrLayershell.layer: WlrLayer.Background
 
     Image {
