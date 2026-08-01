@@ -22,10 +22,6 @@ AbstractButton {
     implicitHeight: 28
     scale: root.down ? 0.96 : 1
 
-    Component.onCompleted: {
-        SurfaceController.openQuickSettings(root.screen);
-    }
-
     HoverHandler {
         cursorShape: Qt.PointingHandCursor
     }
