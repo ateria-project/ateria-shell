@@ -17,6 +17,13 @@ QtObject {
     readonly property real disabledContainerOpacity: 0.12
     readonly property real disabledContentOpacity: 0.38
 
+    // ChromeOS-style panel edge treatment.
+    readonly property int panelBorderWidth: 1
+    readonly property int panelInnerBorderInset: 1
+
+    readonly property color panelOuterKeyline: darkMode ? Qt.rgba(0.0, 0.0, 0.0, 0.055) : Qt.rgba(0.0, 0.0, 0.0, 0.05)
+    readonly property color panelInnerHighlight: darkMode ? Qt.rgba(1.0, 1.0, 1.0, 0.025) : Qt.rgba(1.0, 1.0, 1.0, 0.10)
+
     readonly property var lightScheme: ({
             "primary": "#006a60",
             "onPrimary": "#ffffff",

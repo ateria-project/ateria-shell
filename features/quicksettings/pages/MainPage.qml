@@ -13,16 +13,13 @@ import Quickshell.Services.UPower
 import qs.shell
 import qs.theme
 
-Rectangle {
+M3Panel {
     id: root
 
     property var controller: null
 
     implicitWidth: 396
     implicitHeight: mainLayout.implicitHeight + 32
-
-    color: Theme.scheme.surfaceContainer
-    radius: 16
 
     ColumnLayout {
         id: mainLayout

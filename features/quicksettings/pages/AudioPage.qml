@@ -6,15 +6,12 @@ import qs.features.quicksettings.components
 import qs.platform.audio
 import qs.theme
 
-Rectangle {
+M3Panel {
     id: root
 
     property var controller: null
 
     implicitHeight: Math.min(450, header.implicitHeight + Metrics.spacingXs + deviceColumn.implicitHeight + Metrics.spacingSm + 8)
-
-    color: Theme.scheme.surfaceContainer
-    radius: 16
 
     component SelectableRow: AbstractButton {
         id: rowRoot

@@ -124,11 +124,11 @@ PanelWindow {
         }
     }
 
-    Rectangle {
+    M3Panel {
+        id: panelSurface
         anchors.fill: parent
         radius: 16
         color: Theme.scheme.surfaceContainer
-        antialiasing: true
 
         ColumnLayout {
             id: mainLayout

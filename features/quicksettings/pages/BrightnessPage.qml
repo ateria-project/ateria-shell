@@ -5,16 +5,12 @@ import qs.features.quicksettings.components
 import qs.platform.display
 import qs.theme
 
-Rectangle {
+M3Panel {
     id: root
 
     property var controller: null
 
-    implicitWidth: 396
     implicitHeight: Math.min(450, header.implicitHeight + Metrics.spacingXs + monitorColumn.implicitHeight + 16)
-
-    color: Theme.scheme.surfaceContainer
-    radius: 16
 
     component BrightnessMonitorRow: Rectangle {
         id: rowRoot
@@ -194,6 +190,53 @@ Rectangle {
 
         ScrollBar.vertical: M3ScrollBar {
             policy: monitorList.contentHeight > monitorList.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+        }
+    }
+
+    Rectangle {
+        id: outerKeyline
+
+        anchors.fill: parent
+        z: 1000
+
+        color: "transparent"
+        radius: root.radius
+        antialiasing: true
+
+        property color strokeColor: Theme.panelOuterKeyline
+
+        border.width: Theme.panelBorderWidth
+        border.color: strokeColor
+
+        Behavior on strokeColor {
+            ColorAnimation {
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
+
+    Rectangle {
+        id: innerHighlight
+
+        anchors.fill: parent
+        anchors.margins: Theme.panelInnerBorderInset
+        z: 1001
+
+        color: "transparent"
+        radius: Math.max(0, root.radius - Theme.panelInnerBorderInset)
+        antialiasing: true
+
+        property color strokeColor: Theme.panelInnerHighlight
+
+        border.width: Theme.panelBorderWidth
+        border.color: strokeColor
+
+        Behavior on strokeColor {
+            ColorAnimation {
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
         }
     }
 }
