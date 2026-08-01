@@ -71,6 +71,7 @@ PanelWindow {
 
     ClockWidget {
         anchors.centerIn: parent
+        screen: window.screen
     }
 
     StatusArea {

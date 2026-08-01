@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.features.bar
+import qs.features.calendar
 import qs.features.quicksettings
 import qs.shell
 
@@ -21,6 +22,12 @@ Scope {
 
     QuickSettingsPanel {
         id: quickSettingsPanel
+
+        screen: SurfaceController.activeScreen
+    }
+
+    CalendarPanel {
+        id: calendarPanel
 
         screen: SurfaceController.activeScreen
     }

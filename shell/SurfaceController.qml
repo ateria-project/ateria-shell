@@ -7,15 +7,14 @@ Singleton {
 
     enum Surface {
         None = 0,
-        QuickSettings = 1
+        QuickSettings = 1,
+        Calendar = 2
     }
 
-    property int activeSurface: SurfaceController.Surface.None
+    property int activeSurface: 0
     property var activeScreen: null
-    readonly property bool quickSettingsOpen: root.activeSurface === SurfaceController.Surface.QuickSettings
-    readonly property bool notificationsOpen: root.activeSurface === SurfaceController.Surface.Notifications
-    readonly property bool launcherOpen: root.activeSurface === SurfaceController.Surface.Launcher
-    readonly property bool powerMenuOpen: root.activeSurface === SurfaceController.Surface.PowerMenu
+    readonly property bool quickSettingsOpen: root.activeSurface === 1
+    readonly property bool calendarOpen: root.activeSurface === 2
 
     function openSurface(surface: int, screen) {
         root.activeScreen = screen ?? null;
@@ -23,7 +22,7 @@ Singleton {
     }
 
     function closeSurface() {
-        root.activeSurface = SurfaceController.Surface.None;
+        root.activeSurface = 0;
     }
 
     function toggleSurface(surface: int, screen) {
@@ -35,11 +34,11 @@ Singleton {
 
     // Start quick settings
     function toggleQuickSettings(screen) {
-        root.toggleSurface(SurfaceController.Surface.QuickSettings, screen);
+        root.toggleSurface(1, screen);
     }
 
     function openQuickSettings(screen) {
-        root.openSurface(SurfaceController.Surface.QuickSettings, screen);
+        root.openSurface(1, screen);
     }
 
     function closeQuickSettings() {
@@ -47,4 +46,19 @@ Singleton {
             root.closeSurface();
     }
     // End quick settings
+
+    // Start calendar
+    function toggleCalendar(screen) {
+        root.toggleSurface(2, screen);
+    }
+
+    function openCalendar(screen) {
+        root.openSurface(2, screen);
+    }
+
+    function closeCalendar() {
+        if (root.calendarOpen)
+            root.closeSurface();
+    }
+    // End calendar
 }

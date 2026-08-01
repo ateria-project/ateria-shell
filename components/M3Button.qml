@@ -120,33 +120,40 @@ AbstractButton {
         }
     }
 
-    contentItem: Row {
-        spacing: root.spacing
+    contentItem: Item {
+        implicitWidth: row.implicitWidth
+        implicitHeight: row.implicitHeight
 
-        M3Icon {
-            anchors.verticalCenter: parent.verticalCenter
+        Row {
+            id: row
+            anchors.centerIn: parent
+            spacing: root.spacing
 
-            visible: root.hasIcon
+            M3Icon {
+                anchors.verticalCenter: parent.verticalCenter
 
-            name: root.iconName
-            size: root.iconSize
-            filled: root.iconFilled
-            weight: root.iconWeight
-            grade: root.iconGrade
-            opticalSize: root.iconOpticalSize
-            color: root.contentColor
-        }
+                visible: root.hasIcon
 
-        M3Text {
-            anchors.verticalCenter: parent.verticalCenter
+                name: root.iconName
+                size: root.iconSize
+                filled: root.iconFilled
+                weight: root.iconWeight
+                grade: root.iconGrade
+                opticalSize: root.iconOpticalSize
+                color: root.contentColor
+            }
 
-            visible: root.hasText
+            M3Text {
+                anchors.verticalCenter: parent.verticalCenter
 
-            text: root.text
-            color: root.contentColor
+                visible: root.hasText
 
-            font.pixelSize: 14
-            font.weight: Font.Medium
+                text: root.text
+                color: root.contentColor
+
+                font.pixelSize: 14
+                font.weight: Font.Medium
+            }
         }
     }
 
