@@ -40,22 +40,6 @@ PanelWindow {
     WlrLayershell.exclusiveZone: 0
     visible: open
 
-    Behavior on implicitWidth {
-        NumberAnimation {
-            duration: 150
-            easing.type: Motion.easingEmphasized
-            easing.bezierCurve: Motion.emphasizedCurve
-        }
-    }
-
-    Behavior on implicitHeight {
-        NumberAnimation {
-            duration: 150
-            easing.type: Motion.easingEmphasized
-            easing.bezierCurve: Motion.emphasizedCurve
-        }
-    }
-
     function sameMonth(a, b) {
         return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
     }
@@ -193,14 +177,6 @@ PanelWindow {
                     text: Qt.formatDate(root.displayedMonth, "MMMM yyyy")
                     font.pixelSize: 18
                     font.weight: Font.Normal
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: 200
-                            easing.type: Easing.BezierSpline
-                            easing.bezierCurve: [0.34, 0.80, 0.34, 1.0, 1.0, 1.0]
-                        }
-                    }
                 }
 
                 Item {
