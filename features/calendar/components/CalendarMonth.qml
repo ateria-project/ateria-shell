@@ -58,7 +58,7 @@ Item {
                     radius: width / 2
                     color: {
                         if (dayCell.isToday)
-                            return dayCell.isCurrentMonth ? Theme.scheme.primaryContainer : Theme.scheme.surfaceContainerHighest;
+                            return dayCell.isCurrentMonth ? Theme.scheme.primaryContainer : "transparent";
                         if (dayCell.isSelected)
                             return Theme.scheme.surfaceContainerHighest;
                         if (dayCell.down)
@@ -81,7 +81,7 @@ Item {
                         text: dayCell.modelData ? dayCell.modelData.getDate() : ""
                         font.pixelSize: 14
                         font.weight: dayCell.isToday || dayCell.isSelected ? Font.Medium : Font.Normal
-                        opacity: dayCell.isCurrentMonth || dayCell.isToday || dayCell.isSelected ? 1.0 : 0.28
+                        opacity: dayCell.isCurrentMonth ? 1.0 : 0.28
                         color: {
                             if (dayCell.isToday)
                                 return dayCell.isCurrentMonth ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurface;
