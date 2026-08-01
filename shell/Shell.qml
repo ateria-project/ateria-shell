@@ -4,10 +4,13 @@ import qs.features.bar
 import qs.features.calendar
 import qs.features.quicksettings
 import qs.features.wallpaper
+import qs.platform.settings
 import qs.shell
 
 Scope {
     id: root
+
+    Component.onCompleted: SettingsBootstrap.initialize()
 
     Variants {
         model: Quickshell.screens
