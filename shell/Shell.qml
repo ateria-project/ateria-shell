@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import qs.features.bar
 import qs.features.calendar
+import qs.features.launcher
 import qs.features.notifications
 import qs.features.quicksettings
 import qs.features.wallpaper
@@ -55,6 +56,10 @@ Scope {
         id: notificationPanel
 
         screen: SurfaceController.activeScreen
+    }
+
+    LauncherPanel {
+        id: launcherPanel
     }
 
     NotificationOverlay {

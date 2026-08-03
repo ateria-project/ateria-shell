@@ -1,9 +1,7 @@
 import QtQuick
 import Quickshell
-import qs.components
 import qs.features.notifications.components
 import qs.platform.compositor
-import qs.shell
 import qs.theme
 
 PanelWindow {
@@ -93,6 +91,10 @@ PanelWindow {
             left: parent.left
             leftMargin: 6
             verticalCenter: parent.verticalCenter
+        }
+
+        LauncherButton {
+            screen: window.screen
         }
 
         WorkspacesWidget {

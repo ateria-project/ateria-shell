@@ -2,6 +2,7 @@ pragma Singleton
 
 import QtQuick
 import qs.features.example
+import qs.features.launcher
 import qs.features.wallpaper
 import qs.platform.settings
 
@@ -19,6 +20,7 @@ QtObject {
         // schema here will remove its persisted settings.
         let registrationSucceeded = true;
         registrationSucceeded = SettingsService.registerSchema(ExampleSettings.schema) && registrationSucceeded;
+        registrationSucceeded = SettingsService.registerSchema(LauncherSettings.schema) && registrationSucceeded;
         registrationSucceeded = SettingsService.registerSchema(WallpaperSettings.schema) && registrationSucceeded;
 
         if (!registrationSucceeded) {

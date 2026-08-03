@@ -9,7 +9,8 @@ Singleton {
         None = 0,
         QuickSettings = 1,
         Calendar = 2,
-        NotificationPanel = 3
+        NotificationPanel = 3,
+        Launcher = 4
     }
 
     property int activeSurface: 0
@@ -17,6 +18,7 @@ Singleton {
     readonly property bool quickSettingsOpen: root.activeSurface === 1
     readonly property bool calendarOpen: root.activeSurface === 2
     readonly property bool notificationPanelOpen: root.activeSurface === 3
+    readonly property bool launcherOpen: root.activeSurface === 4
 
     function openSurface(surface: int, screen) {
         root.activeScreen = screen ?? null;
@@ -78,4 +80,19 @@ Singleton {
             root.closeSurface();
     }
     // End notifications
+
+    // Start launcher
+    function toggleLauncher(screen) {
+        root.toggleSurface(4, screen);
+    }
+
+    function openLauncher(screen) {
+        root.openSurface(4, screen);
+    }
+
+    function closeLauncher() {
+        if (root.launcherOpen)
+            root.closeSurface();
+    }
+    // End launcher
 }
