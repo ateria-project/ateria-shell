@@ -11,6 +11,35 @@ PanelWindow {
 
     readonly property string outputName: window.screen ? window.screen.name : ""
     readonly property int workspacePageSize: 9
+    readonly property var activeWorkspace: {
+        const workspace = (NiriService.workspaces ?? []).find(workspace => {
+            return workspace.output === window.outputName && Boolean(workspace.active);
+        });
+        return workspace ?? null;
+    }
+    readonly property int activeWorkspaceId: window.activeWorkspace ? Number(window.activeWorkspace.id) : 0
+    readonly property var activeWindowId: window.activeWorkspace ? window.activeWorkspace.activeWindowId : null
+    readonly property var visibleWindows: {
+        const workspaceId = window.activeWorkspaceId;
+        if (workspaceId < 1)
+            return [];
+
+        return (NiriService.windows ?? []).filter(appWindow => {
+            return Number(appWindow.workspaceId) === workspaceId;
+        }).sort((left, right) => {
+            const leftPosition = left.layoutPosition;
+            const rightPosition = right.layoutPosition;
+            if (leftPosition === null && rightPosition === null)
+                return Number(left.id) - Number(right.id);
+            if (leftPosition === null)
+                return 1;
+            if (rightPosition === null)
+                return -1;
+            if (Number(leftPosition[0]) !== Number(rightPosition[0]))
+                return Number(leftPosition[0]) - Number(rightPosition[0]);
+            return Number(leftPosition[1]) - Number(rightPosition[1]);
+        });
+    }
     readonly property var visibleWorkspaces: {
         const allWorkspaces = NiriService.workspaces ?? [];
         const outputWorkspaces = allWorkspaces.filter(workspace => {
@@ -57,16 +86,29 @@ PanelWindow {
         right: true
     }
 
-    WorkspacesWidget {
-        workspaces: window.visibleWorkspaces
-        onWorkspaceRequested: workspaceIndex => {
-            return NiriService.focusWorkspace(workspaceIndex, window.outputName);
-        }
+    Row {
+        spacing: Metrics.spacingXs
 
         anchors {
             left: parent.left
             leftMargin: 6
             verticalCenter: parent.verticalCenter
+        }
+
+        WorkspacesWidget {
+            workspaces: window.visibleWorkspaces
+            onWorkspaceRequested: workspaceIndex => {
+                return NiriService.focusWorkspace(workspaceIndex, window.outputName);
+            }
+        }
+
+        WindowsWidget {
+            windows: window.visibleWindows
+            activeWindowId: window.activeWindowId
+            useAppIcons: false
+            onWindowRequested: windowId => {
+                return NiriService.focusWindow(windowId);
+            }
         }
     }
 

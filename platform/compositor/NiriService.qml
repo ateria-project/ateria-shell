@@ -9,6 +9,7 @@ Singleton {
     readonly property bool available: root.connected
     property bool connected: false
     property var workspaces: []
+    property var windows: []
     property string lastError: ""
     property int reconnectDelay: 1000
     property int currentReconnectDelay: 1000
@@ -33,7 +34,8 @@ Singleton {
                 "activeWindowId": null
             };
 
-        const activeWindowId = workspace.active_window_id ?? null;
+        const activeWindowId = workspace.active_window_id === null || workspace.active_window_id === undefined
+            ? null : Number(workspace.active_window_id);
         return {
             "id": Number(workspace.id ?? 0),
             "index": Number(workspace.idx ?? 0),
@@ -69,6 +71,75 @@ Singleton {
         const nextWorkspaces = root.workspaces.slice();
         nextWorkspaces[index] = Object.assign({}, workspace, changes);
         root.workspaces = nextWorkspaces;
+    }
+
+    function normalizeWindow(window) {
+        if (window === null || window === undefined || typeof window !== "object")
+            return {
+                "id": 0,
+                "title": "",
+                "appId": "",
+                "workspaceId": null,
+                "focused": false,
+                "floating": false,
+                "urgent": false,
+                "layoutPosition": null
+            };
+
+        const layout = window.layout ?? {};
+        return {
+            "id": Number(window.id ?? 0),
+            "title": window.title ?? "",
+            "appId": window.app_id ?? "",
+            "workspaceId": window.workspace_id === null || window.workspace_id === undefined
+                ? null : Number(window.workspace_id),
+            "focused": Boolean(window.is_focused),
+            "floating": Boolean(window.is_floating),
+            "urgent": Boolean(window.is_urgent),
+            "layoutPosition": layout.pos_in_scrolling_layout ?? null
+        };
+    }
+
+    function layoutPositionsEqual(left, right) {
+        if (left === right)
+            return true;
+        if (left === null || right === null)
+            return false;
+
+        return Number(left[0]) === Number(right[0]) && Number(left[1]) === Number(right[1]);
+    }
+
+    function patchWindowById(windowId, changes) {
+        const index = root.windows.findIndex(window => {
+            return window.id === windowId;
+        });
+        if (index < 0)
+            return;
+
+        const window = root.windows[index];
+        const keys = Object.keys(changes);
+        if (!keys.some(key => window[key] !== changes[key]))
+            return;
+
+        const nextWindows = root.windows.slice();
+        nextWindows[index] = Object.assign({}, window, changes);
+        root.windows = nextWindows;
+    }
+
+    function setFocusedWindow(windowId) {
+        let nextWindows = null;
+        for (let index = 0; index < root.windows.length; ++index) {
+            const window = root.windows[index];
+            const focused = windowId !== null && window.id === windowId;
+            if (window.focused === focused)
+                continue;
+
+            if (nextWindows === null)
+                nextWindows = root.windows.slice();
+            nextWindows[index] = Object.assign({}, window, { "focused": focused });
+        }
+        if (nextWindows !== null)
+            root.windows = nextWindows;
     }
 
     function handleEventLine(line: string) {
@@ -160,11 +231,87 @@ Singleton {
             }
         case "WorkspaceActiveWindowChanged":
             {
-                const activeWindowId = payload.active_window_id ?? null;
+                const activeWindowId = payload.active_window_id === null || payload.active_window_id === undefined
+                    ? null : Number(payload.active_window_id);
                 root.patchWorkspaceById(Number(payload.workspace_id), {
                     "activeWindowId": activeWindowId,
                     "occupied": activeWindowId !== null
                 });
+                return;
+            }
+        case "WindowsChanged":
+            root.windows = (payload.windows ?? []).map(window => {
+                return root.normalizeWindow(window);
+            });
+            return;
+        case "WindowOpenedOrChanged":
+            {
+                const incoming = root.normalizeWindow(payload.window);
+                const index = root.windows.findIndex(window => {
+                    return window.id === incoming.id;
+                });
+                let nextWindows = null;
+                if (incoming.focused) {
+                    for (let currentIndex = 0; currentIndex < root.windows.length; ++currentIndex) {
+                        const window = root.windows[currentIndex];
+                        if (window.id === incoming.id || !window.focused)
+                            continue;
+
+                        if (nextWindows === null)
+                            nextWindows = root.windows.slice();
+                        nextWindows[currentIndex] = Object.assign({}, window, { "focused": false });
+                    }
+                }
+
+                if (nextWindows === null)
+                    nextWindows = root.windows.slice();
+                if (index < 0) {
+                    nextWindows.push(incoming);
+                } else {
+                    nextWindows[index] = incoming;
+                }
+                root.windows = nextWindows;
+                return;
+            }
+        case "WindowClosed":
+            root.windows = root.windows.filter(window => {
+                return window.id !== Number(payload.id);
+            });
+            return;
+        case "WindowFocusChanged":
+            root.setFocusedWindow(payload.id === null || payload.id === undefined ? null : Number(payload.id));
+            return;
+        case "WindowUrgencyChanged":
+            root.patchWindowById(Number(payload.id), {
+                "urgent": Boolean(payload.urgent)
+            });
+            return;
+        case "WindowLayoutsChanged":
+            {
+                const indexById = new Map();
+                for (let index = 0; index < root.windows.length; ++index)
+                    indexById.set(root.windows[index].id, index);
+
+                let nextWindows = null;
+                for (const change of payload.changes ?? []) {
+                    const windowId = Number(change[0]);
+                    const index = indexById.get(windowId);
+                    if (index === undefined)
+                        continue;
+                    const layout = change[1] ?? {};
+                    const layoutPosition = layout.pos_in_scrolling_layout ?? null;
+                    const window = root.windows[index];
+                    if (root.layoutPositionsEqual(window.layoutPosition, layoutPosition))
+                        continue;
+
+                    if (nextWindows === null)
+                        nextWindows = root.windows.slice();
+                    nextWindows[index] = Object.assign({}, window, {
+                        "layoutPosition": layoutPosition
+                    });
+                }
+                if (nextWindows !== null)
+                    root.windows = nextWindows;
                 return;
             }
         default:
@@ -207,6 +354,13 @@ Singleton {
 
     function runFocusWorkspace(workspaceIndex: int) {
         root.runAction(focusWorkspaceProcess, "focus-workspace", [String(workspaceIndex)]);
+    }
+
+    function focusWindow(windowId: double) {
+        if (windowId < 1 || focusWindowProcess.running)
+            return;
+
+        root.runAction(focusWindowProcess, "focus-window", ["--id", String(windowId)]);
     }
 
     function quit() {
@@ -275,6 +429,10 @@ Singleton {
 
     Process {
         id: focusWorkspaceProcess
+    }
+
+    Process {
+        id: focusWindowProcess
     }
 
     Process {
