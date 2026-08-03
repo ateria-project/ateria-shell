@@ -54,7 +54,7 @@ AbstractButton {
         M3Text {
             id: label
             anchors.centerIn: parent
-            text: Qt.formatDateTime(clock.date, "dddd, d MMMM   •   h:mm AP")
+            text: Qt.formatDateTime(clock.date, "ddd, d MMMM   •   h:mm AP")
             color: Theme.scheme.onSurface
             font.pixelSize: 14
             font.weight: Font.DemiBold
