@@ -8,13 +8,15 @@ Singleton {
     enum Surface {
         None = 0,
         QuickSettings = 1,
-        Calendar = 2
+        Calendar = 2,
+        NotificationPanel = 3
     }
 
     property int activeSurface: 0
     property var activeScreen: null
     readonly property bool quickSettingsOpen: root.activeSurface === 1
     readonly property bool calendarOpen: root.activeSurface === 2
+    readonly property bool notificationPanelOpen: root.activeSurface === 3
 
     function openSurface(surface: int, screen) {
         root.activeScreen = screen ?? null;
@@ -61,4 +63,19 @@ Singleton {
             root.closeSurface();
     }
     // End calendar
+
+    // Start notifications
+    function toggleNotificationPanel(screen) {
+        root.toggleSurface(3, screen);
+    }
+
+    function openNotificationPanel(screen) {
+        root.openSurface(3, screen);
+    }
+
+    function closeNotificationPanel() {
+        if (root.notificationPanelOpen)
+            root.closeSurface();
+    }
+    // End notifications
 }

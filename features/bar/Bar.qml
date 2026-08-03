@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.components
+import qs.features.notifications.components
 import qs.platform.compositor
 import qs.shell
 import qs.theme
@@ -74,14 +75,24 @@ PanelWindow {
         screen: window.screen
     }
 
-    StatusArea {
-        screen: window.screen
-        hasBattery: true
+    Row {
+        spacing: Metrics.spacingXs
 
         anchors {
             right: parent.right
             rightMargin: 6
             verticalCenter: parent.verticalCenter
+        }
+
+        NotificationIndicator {
+            anchors.verticalCenter: parent.verticalCenter
+            screen: window.screen
+        }
+
+        StatusArea {
+            anchors.verticalCenter: parent.verticalCenter
+            screen: window.screen
+            hasBattery: true
         }
     }
 }
