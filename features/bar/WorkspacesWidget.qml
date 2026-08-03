@@ -48,6 +48,7 @@ Rectangle {
     }
     readonly property int activePosition: root.workspaceLayout.activePosition
     readonly property var occupiedRuns: root.workspaceLayout.occupiedRuns
+    readonly property bool showWorkspaceNumbers: workspaceHover.hovered
 
     signal workspaceRequested(int workspaceIndex)
 
@@ -56,6 +57,10 @@ Rectangle {
     implicitHeight: root.barHeight
     radius: Metrics.radiusFull
     color: Theme.scheme.surfaceContainer
+
+    HoverHandler {
+        id: workspaceHover
+    }
 
     Repeater {
         model: root.occupiedRuns
@@ -159,9 +164,12 @@ Rectangle {
                 contentItem: Item {
                     M3Text {
                         anchors.centerIn: parent
-                        visible: control.active
+                        visible: control.active || root.showWorkspaceNumbers
                         text: String(control.workspaceIndex)
-                        color: control.urgent ? Theme.scheme.onError : Theme.scheme.onPrimary
+                        color: control.active
+                            ? (control.urgent ? Theme.scheme.onError : Theme.scheme.onPrimary)
+                            : (control.urgent ? Theme.scheme.error : Theme.scheme.onSurface)
+                        opacity: control.active || control.occupied ? 1 : 0.65
                         font.family: Typography.monoFamily
                         font.pixelSize: 14
                         font.weight: Font.Medium
@@ -169,7 +177,7 @@ Rectangle {
 
                     Rectangle {
                         anchors.centerIn: parent
-                        visible: !control.active
+                        visible: !control.active && !root.showWorkspaceNumbers
                         width: 5
                         height: width
                         radius: width / 2
