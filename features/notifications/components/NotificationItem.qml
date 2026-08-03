@@ -22,20 +22,33 @@ Control {
     property bool showSeparator: true
     property bool drawSeparator: true
     property color toggleContainerColor: Theme.scheme.surfaceContainerHighest
+    property bool animationReady: false
 
     readonly property string summary: root.notification ? String(root.notification.summary || "") : ""
     readonly property string sourceName: NotificationController.sourceName(root.notification)
     readonly property string body: NotificationController.bodyText(root.notification)
     readonly property bool hasSummary: root.summary.length > 0 && root.summary !== root.sourceName
-    readonly property string headerTitle: root.expanded || !root.hasSummary ? root.sourceName : root.summary
     readonly property bool hasBody: root.body.length > 0
     readonly property bool hasActions: Boolean(root.notification && root.notification.actions && root.notification.actions.length > 0)
     readonly property bool hasImage: Boolean(root.notification && String(root.notification.image || "").length > 0)
     readonly property bool expandable: root.hasBody || root.hasActions || root.hasImage
     readonly property string appIconSource: NotificationController.iconSource(root.notification)
     readonly property string groupedIconSource: root.hasImage && root.notification ? String(root.notification.image) : root.appIconSource
+    readonly property real expandedContentOffset: metadataLine.implicitHeight + notificationContent.spacing
+    readonly property real collapsedIconOffset: Math.max(0, (notificationRow.implicitHeight - applicationIconContainer.implicitHeight) / 2)
 
     signal expansionRequested
+
+    Component.onCompleted: root.animationReady = true
+
+    onExpandedChanged: {
+        if (!root.animationReady || !root.hasSummary)
+            return;
+
+        contentPositionAnimation.stop();
+        contentPositionOffset.y += root.expanded ? -root.expandedContentOffset : root.expandedContentOffset;
+        Qt.callLater(() => contentPositionAnimation.start());
+    }
 
     Behavior on implicitHeight {
         NumberAnimation {
@@ -51,12 +64,29 @@ Control {
     bottomPadding: root.grouped ? Metrics.spacingSm : Metrics.spacingLg
 
     contentItem: RowLayout {
+        id: notificationRow
+
         spacing: Metrics.spacingLg
 
         Item {
-            Layout.preferredWidth: 32
-            Layout.preferredHeight: 32
-            Layout.alignment: root.expanded ? Qt.AlignTop : Qt.AlignCenter
+            id: applicationIconContainer
+
+            implicitWidth: 32
+            implicitHeight: 32
+            Layout.alignment: Qt.AlignTop
+            transform: Translate {
+                y: root.expanded ? 0 : root.collapsedIconOffset
+
+                Behavior on y {
+                    enabled: root.animationReady
+
+                    NumberAnimation {
+                        duration: Motion.durationMedium
+                        easing.type: Motion.easingEmphasized
+                        easing.bezierCurve: Motion.emphasizedCurve
+                    }
+                }
+            }
 
             Rectangle {
                 anchors.fill: parent
@@ -116,12 +146,20 @@ Control {
         }
 
         ColumnLayout {
+            id: notificationContent
+
             Layout.fillWidth: true
             spacing: Metrics.spacingSm
+            transform: Translate {
+                id: contentPositionOffset
+            }
 
             M3Text {
+                id: metadataLine
+
                 Layout.fillWidth: true
-                text: root.grouped && root.expanded ? root.relativeTime : qsTr("%1  •  %2").arg(root.headerTitle).arg(root.relativeTime)
+                visible: !root.hasSummary || root.expanded
+                text: root.grouped && root.expanded ? root.relativeTime : qsTr("%1  •  %2").arg(root.sourceName).arg(root.relativeTime)
                 elide: Text.ElideRight
                 maximumLineCount: 1
                 color: Theme.scheme.onSurfaceVariant
@@ -130,12 +168,13 @@ Control {
 
             M3Text {
                 Layout.fillWidth: true
-                visible: root.expanded && root.hasSummary
-                text: root.summary
+                visible: root.hasSummary
+                text: root.expanded ? root.summary : qsTr("%1  •  %2").arg(root.summary).arg(root.relativeTime)
                 textFormat: Text.PlainText
                 wrapMode: Text.WordWrap
                 maximumLineCount: root.expanded ? 3 : 1
                 elide: Text.ElideRight
+                color: root.expanded ? Theme.scheme.onSurface : Theme.scheme.onSurfaceVariant
                 font.pixelSize: 14
             }
 
@@ -169,6 +208,17 @@ Control {
                     }
                 }
             }
+        }
+
+        NumberAnimation {
+            id: contentPositionAnimation
+
+            target: contentPositionOffset
+            property: "y"
+            to: 0
+            duration: Motion.durationMedium
+            easing.type: Motion.easingEmphasized
+            easing.bezierCurve: Motion.emphasizedCurve
         }
 
         Rectangle {
