@@ -10,6 +10,8 @@ import qs.theme
 Control {
     id: root
 
+    clip: true
+
     required property var group
     property bool expanded: false
     property bool showSeparator: true
@@ -20,12 +22,31 @@ Control {
     property bool memberSwipeEnabled: false
     property var dismissMember: notification => {}
     property color toggleContainerColor: Theme.scheme.surfaceContainerHighest
+    property bool animatingGroupExpansion: false
 
     readonly property var latestNotification: root.group ? root.group.latestNotification : null
     readonly property int notificationCount: root.group && root.group.notifications ? root.group.notifications.length : 0
     readonly property string appIconSource: root.group ? String(root.group.appIconSource || "") : ""
 
     signal expansionRequested
+
+    onExpandedChanged: {
+        root.animatingGroupExpansion = true;
+    }
+
+    Behavior on implicitHeight {
+        enabled: root.animatingGroupExpansion
+
+        NumberAnimation {
+            duration: Motion.durationMedium
+            easing.type: Motion.easingEmphasized
+            easing.bezierCurve: Motion.emphasizedCurve
+            onRunningChanged: {
+                if (!running)
+                    root.animatingGroupExpansion = false;
+            }
+        }
+    }
 
     leftPadding: Metrics.spacingLg
     rightPadding: Metrics.spacingLg

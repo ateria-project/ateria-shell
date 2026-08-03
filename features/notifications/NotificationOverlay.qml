@@ -18,6 +18,8 @@ PanelWindow {
     property real rightMargin: Metrics.spacingMd
     property real maximumHeightRatio: 0.6
     property real maximumOverlayHeight: root.screen ? Math.max(0, root.screen.height * root.maximumHeightRatio) : overlayColumn.implicitHeight
+    readonly property real targetOverlayWidth: root.overlayWidth
+    readonly property real targetOverlayHeight: Math.min(overlayColumn.implicitHeight, root.maximumOverlayHeight)
     property var expandedGroupsByKey: ({})
     property var expandedNotificationsById: ({})
     property var hoveredGroupsByKey: ({})
@@ -51,9 +53,13 @@ PanelWindow {
     }
     visible: NotificationOverlayController.hasNotifications && !SurfaceController.notificationPanelOpen
     implicitWidth: root.overlayWidth
-    implicitHeight: Math.min(overlayColumn.implicitHeight, root.maximumOverlayHeight)
+    // Keep the native layer surface stable while the masked overlay animates.
+    implicitHeight: root.maximumOverlayHeight
     color: "transparent"
     WlrLayershell.exclusiveZone: 0
+    mask: Region {
+        item: overlayViewport
+    }
 
     anchors {
         top: true
@@ -149,12 +155,26 @@ PanelWindow {
     Flickable {
         id: overlayViewport
 
-        anchors.fill: parent
+        anchors {
+            top: parent.top
+            right: parent.right
+        }
+        width: root.targetOverlayWidth
+        // Notification cards own the resize animation; follow their height directly.
+        height: root.targetOverlayHeight
         contentWidth: width
         contentHeight: overlayColumn.implicitHeight
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
         clip: true
+
+        Behavior on width {
+            NumberAnimation {
+                duration: Motion.durationMedium
+                easing.type: Motion.easingEmphasized
+                easing.bezierCurve: Motion.emphasizedCurve
+            }
+        }
 
         Column {
             id: overlayColumn

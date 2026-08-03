@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -19,13 +21,19 @@ PanelWindow {
     property real maximumHeightRatio: 0.6
     readonly property real maximumPanelHeight: root.screen ? Math.max(0, root.screen.height * root.maximumHeightRatio) : panelContent.implicitHeight + Metrics.spacingMd * 2
     readonly property real naturalPanelHeight: panelContent.implicitHeight + Metrics.spacingMd * 2
+    readonly property real targetPanelWidth: root.panelWidth
+    readonly property real targetPanelHeight: Math.min(root.panelHeight > 0 ? root.panelHeight : root.naturalPanelHeight, root.maximumPanelHeight)
 
     screen: SurfaceController.activeScreen
     visible: root.open
     implicitWidth: root.panelWidth
-    implicitHeight: Math.min(root.panelHeight > 0 ? root.panelHeight : root.naturalPanelHeight, root.maximumPanelHeight)
+    // Keep the native layer surface stable while the masked panel animates.
+    implicitHeight: root.maximumPanelHeight
     color: "transparent"
     WlrLayershell.exclusiveZone: 0
+    mask: Region {
+        item: panelSurface
+    }
 
     anchors {
         top: true
@@ -40,9 +48,24 @@ PanelWindow {
     M3Panel {
         id: panelSurface
 
-        anchors.fill: parent
+        anchors {
+            top: parent.top
+            right: parent.right
+        }
+        width: root.targetPanelWidth
+        // Notification cards own the resize animation; follow their height directly.
+        height: root.targetPanelHeight
         radius: Metrics.radiusLg
         color: Theme.scheme.surfaceContainer
+        clip: true
+
+        Behavior on width {
+            NumberAnimation {
+                duration: Motion.durationMedium
+                easing.type: Motion.easingEmphasized
+                easing.bezierCurve: Motion.emphasizedCurve
+            }
+        }
 
         ColumnLayout {
             id: panelContent
@@ -86,57 +109,62 @@ PanelWindow {
                             model: root.open ? NotificationController.notificationGroups.length : 0
 
                             delegate: SwipeToDismiss {
+                                id: notificationDelegate
+
                                 required property int index
                                 readonly property var notificationGroupData: NotificationController.notificationGroups[index]
+                                readonly property bool grouped: notificationDelegate.notificationGroupData.notifications.length > 1
+                                readonly property Item loadedNotification: notificationLoader.item
 
                                 width: notificationList.width
-                                implicitHeight: notificationGroupData.notifications.length > 1 ? groupedNotification.implicitHeight : singleNotification.implicitHeight
-                                swipeEnabled: notificationGroupData.notifications.length === 1 || !NotificationController.isGroupExpanded(notificationGroupData)
-                                showSeparator: index < NotificationController.notificationGroups.length - 1
+                                implicitHeight: notificationDelegate.loadedNotification ? notificationDelegate.loadedNotification.implicitHeight : 0
+                                swipeEnabled: !notificationDelegate.grouped || !NotificationController.isGroupExpanded(notificationDelegate.notificationGroupData)
+                                showSeparator: notificationDelegate.index < NotificationController.notificationGroups.length - 1
                                 onDismissed: {
-                                    if (notificationGroupData.notifications.length > 1)
-                                        NotificationService.dismissMany(notificationGroupData.notifications);
+                                    if (notificationDelegate.grouped)
+                                        NotificationService.dismissMany(notificationDelegate.notificationGroupData.notifications);
                                     else
-                                        NotificationService.dismiss(notificationGroupData.notifications[0]);
+                                        NotificationService.dismiss(notificationDelegate.notificationGroupData.notifications[0]);
                                 }
 
-                                NotificationGroup {
-                                    id: groupedNotification
+                                Loader {
+                                    id: notificationLoader
 
                                     anchors {
                                         left: parent.left
                                         right: parent.right
                                         top: parent.top
                                     }
-                                    visible: notificationGroupData.notifications.length > 1
-                                    group: notificationGroupData
-                                    toggleContainerColor: Theme.scheme.surfaceVariant
-                                    expanded: NotificationController.isGroupExpanded(group)
-                                    showSeparator: index < NotificationController.notificationGroups.length - 1
-                                    drawSeparator: false
-                                    memberSwipeEnabled: expanded
-                                    dismissMember: notification => NotificationService.dismiss(notification)
-                                    onExpansionRequested: NotificationController.toggleGroupExpanded(group)
+                                    sourceComponent: notificationDelegate.grouped ? groupedNotificationComponent : singleNotificationComponent
                                 }
 
-                                NotificationItem {
-                                    id: singleNotification
+                                Component {
+                                    id: groupedNotificationComponent
 
-                                    readonly property var singleNotificationData: notificationGroupData.notifications[0]
-
-                                    anchors {
-                                        left: parent.left
-                                        right: parent.right
-                                        top: parent.top
+                                    NotificationGroup {
+                                        group: notificationDelegate.notificationGroupData
+                                        toggleContainerColor: Theme.scheme.surfaceVariant
+                                        expanded: NotificationController.isGroupExpanded(group)
+                                        showSeparator: notificationDelegate.index < NotificationController.notificationGroups.length - 1
+                                        drawSeparator: false
+                                        memberSwipeEnabled: expanded
+                                        dismissMember: notification => NotificationService.dismiss(notification)
+                                        onExpansionRequested: NotificationController.toggleGroupExpanded(group)
                                     }
-                                    visible: notificationGroupData.notifications.length === 1
-                                    notification: singleNotificationData
-                                    toggleContainerColor: Theme.scheme.surfaceVariant
-                                    expanded: NotificationController.isExpanded(notification)
-                                    relativeTime: NotificationController.relativeTime(notification)
-                                    showSeparator: index < NotificationController.notificationGroups.length - 1
-                                    drawSeparator: false
-                                    onExpansionRequested: NotificationController.toggleExpanded(notification)
+                                }
+
+                                Component {
+                                    id: singleNotificationComponent
+
+                                    NotificationItem {
+                                        notification: notificationDelegate.notificationGroupData.notifications[0]
+                                        toggleContainerColor: Theme.scheme.surfaceVariant
+                                        expanded: NotificationController.isExpanded(notification)
+                                        relativeTime: NotificationController.relativeTime(notification)
+                                        showSeparator: notificationDelegate.index < NotificationController.notificationGroups.length - 1
+                                        drawSeparator: false
+                                        onExpansionRequested: NotificationController.toggleExpanded(notification)
+                                    }
                                 }
                             }
                         }

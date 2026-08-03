@@ -17,11 +17,12 @@ Item {
     readonly property var notification: root.group && root.group.notifications ? root.group.notifications[0] : null
     readonly property string groupKey: root.group ? String(root.group.key || "") : ""
     readonly property bool hovered: overlayHoverHandler.hovered
+    readonly property Item loadedNotification: notificationLoader.item
 
     signal expansionRequested
     signal dismissRequested(string groupKey)
 
-    implicitHeight: root.grouped ? groupedNotification.implicitHeight : singleNotification.implicitHeight
+    implicitHeight: root.loadedNotification ? root.loadedNotification.implicitHeight : 0
 
     SwipeToDismiss {
         anchors.fill: parent
@@ -34,39 +35,42 @@ Item {
             color: Theme.scheme.surfaceContainerHigh
         }
 
-        NotificationGroup {
-            id: groupedNotification
+        Loader {
+            id: notificationLoader
 
             anchors {
                 left: parent.left
                 right: parent.right
                 top: parent.top
             }
-            visible: root.grouped
-            group: root.group
-            expanded: root.expanded
-            showSeparator: false
-            isMemberExpanded: root.isMemberExpanded
-            toggleMemberExpanded: root.toggleMemberExpanded
-            memberSwipeEnabled: root.expanded
-            dismissMember: notification => NotificationOverlayController.hideNotification(notification)
-            onExpansionRequested: root.expansionRequested()
+            sourceComponent: root.grouped ? groupedNotificationComponent : singleNotificationComponent
         }
 
-        NotificationItem {
-            id: singleNotification
+        Component {
+            id: groupedNotificationComponent
 
-            anchors {
-                left: parent.left
-                right: parent.right
-                top: parent.top
+            NotificationGroup {
+                group: root.group
+                expanded: root.expanded
+                showSeparator: false
+                isMemberExpanded: root.isMemberExpanded
+                toggleMemberExpanded: root.toggleMemberExpanded
+                memberSwipeEnabled: root.expanded
+                dismissMember: notification => NotificationOverlayController.hideNotification(notification)
+                onExpansionRequested: root.expansionRequested()
             }
-            visible: !root.grouped
-            notification: root.notification
-            expanded: root.expanded
-            relativeTime: NotificationController.relativeTime(notification)
-            showSeparator: false
-            onExpansionRequested: root.expansionRequested()
+        }
+
+        Component {
+            id: singleNotificationComponent
+
+            NotificationItem {
+                notification: root.notification
+                expanded: root.expanded
+                relativeTime: NotificationController.relativeTime(notification)
+                showSeparator: false
+                onExpansionRequested: root.expansionRequested()
+            }
         }
     }
 

@@ -13,6 +13,8 @@ import qs.theme
 Control {
     id: root
 
+    clip: true
+
     required property var notification
     property bool expanded: false
     property bool grouped: false
@@ -34,6 +36,14 @@ Control {
     readonly property string groupedIconSource: root.hasImage && root.notification ? String(root.notification.image) : root.appIconSource
 
     signal expansionRequested
+
+    Behavior on implicitHeight {
+        NumberAnimation {
+            duration: Motion.durationMedium
+            easing.type: Motion.easingEmphasized
+            easing.bezierCurve: Motion.emphasizedCurve
+        }
+    }
 
     leftPadding: root.grouped ? 0 : Metrics.spacingLg
     rightPadding: root.grouped ? 0 : Metrics.spacingLg
@@ -68,7 +78,7 @@ Control {
                 anchors.centerIn: parent
                 width: 28
                 height: 28
-                source: root.appIconSource
+                source: root.grouped ? "" : root.appIconSource
                 sourceSize.width: width
                 sourceSize.height: height
                 fillMode: Image.PreserveAspectFit
@@ -80,7 +90,7 @@ Control {
                 id: groupedIconImage
 
                 anchors.fill: parent
-                source: root.groupedIconSource
+                source: root.grouped ? root.groupedIconSource : ""
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 visible: false
@@ -173,7 +183,7 @@ Control {
                 id: thumbnailImage
 
                 anchors.fill: parent
-                source: root.notification ? root.notification.image : ""
+                source: !root.grouped && root.notification ? root.notification.image : ""
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 visible: false
