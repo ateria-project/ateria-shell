@@ -13,6 +13,7 @@ Text {
 
     text: root.name
     textFormat: Text.PlainText
+    renderType: root.filled ? Text.CurveRendering : Text.QtRendering
     color: Theme.scheme.onSurface
     horizontalAlignment: Text.AlignHCenter
     verticalAlignment: Text.AlignVCenter
