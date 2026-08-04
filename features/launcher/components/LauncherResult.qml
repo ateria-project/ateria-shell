@@ -4,7 +4,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import qs.components
-import qs.features.launcher.icons
+import qs.platform.appicons
 import qs.theme
 
 AbstractButton {
@@ -12,6 +12,7 @@ AbstractButton {
 
     required property var desktopEntry
     property bool selected: false
+    readonly property int iconSourceSize: 80
 
     readonly property string appName: root.desktopEntry ? String(root.desktopEntry.name || "") : ""
     readonly property string appDescription: {
@@ -25,7 +26,7 @@ AbstractButton {
         const genericName = String(root.desktopEntry.genericName || "").trim();
         return genericName.length > 0 ? genericName : String(root.desktopEntry.id || "");
     }
-    readonly property string iconSource: IconResolver.source(root.desktopEntry ? root.desktopEntry.icon : "")
+    readonly property string iconSource: AppIconResolver.source(root.desktopEntry ? root.desktopEntry.icon : "", root.iconSourceSize)
     readonly property string initial: root.appName.length > 0 ? root.appName.charAt(0).toUpperCase() : "?"
 
     Accessible.name: root.appDescription.length > 0 ? qsTr("%1, %2").arg(root.appName).arg(root.appDescription) : root.appName
@@ -74,8 +75,8 @@ AbstractButton {
 
                 anchors.fill: parent
                 source: root.iconSource
-                sourceSize.width: IconResolver.preferredSize
-                sourceSize.height: IconResolver.preferredSize
+                sourceSize.width: root.iconSourceSize
+                sourceSize.height: root.iconSourceSize
                 asynchronous: true
                 fillMode: Image.PreserveAspectFit
                 visible: root.iconSource.length > 0 && status !== Image.Error

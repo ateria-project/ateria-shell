@@ -3,28 +3,28 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "IconSearch.js" as IconSearch
+import "AppIconSearch.js" as AppIconSearch
 
 Singleton {
     id: root
 
-    readonly property int preferredSize: 80
-    readonly property var searchRoots: IconSearch.searchRoots({
+    readonly property int defaultSize: 64
+    readonly property var searchRoots: AppIconSearch.searchRoots({
         "HOME": Quickshell.env("HOME"),
         "XDG_DATA_HOME": Quickshell.env("XDG_DATA_HOME"),
         "XDG_DATA_DIRS": Quickshell.env("XDG_DATA_DIRS")
     })
 
     property var resolvedPaths: ({})
-    property var queuedNames: ({})
-    property var inFlightNames: ({})
+    property var queuedRequests: ({})
+    property var inFlightRequests: ({})
 
-    function source(icon): string {
-        const direct = IconSearch.directSource(icon);
+    function source(icon, requestedSize): string {
+        const direct = AppIconSearch.directSource(icon);
         if (direct.length > 0)
             return direct;
 
-        const name = IconSearch.normalizedName(icon);
+        const name = AppIconSearch.normalizedName(icon);
         if (name.length === 0)
             return "";
 
@@ -32,23 +32,27 @@ Singleton {
         if (themed.length > 0)
             return themed;
 
-        const key = IconSearch.cacheKey(name);
-        if (IconSearch.hasOwn(root.resolvedPaths, key))
+        const size = Math.max(1, Math.round(Number(requestedSize) || root.defaultSize));
+        const key = AppIconSearch.cacheKey(name) + "@" + size;
+        if (AppIconSearch.hasOwn(root.resolvedPaths, key))
             return root.resolvedPaths[key];
 
-        root.enqueue(name, key);
+        root.enqueue(name, size, key);
         return "";
     }
 
-    function enqueue(name, key) {
+    function enqueue(name, size, key) {
         if (key.length === 0
                 || name.includes("/")
-                || IconSearch.hasOwn(root.resolvedPaths, key)
-                || IconSearch.hasOwn(root.queuedNames, key)
-                || IconSearch.hasOwn(root.inFlightNames, key))
+                || AppIconSearch.hasOwn(root.resolvedPaths, key)
+                || AppIconSearch.hasOwn(root.queuedRequests, key)
+                || AppIconSearch.hasOwn(root.inFlightRequests, key))
             return;
 
-        root.queuedNames[key] = name;
+        root.queuedRequests[key] = {
+            "name": name,
+            "size": size
+        };
         scanTimer.restart();
     }
 
@@ -56,11 +60,11 @@ Singleton {
         if (scanProcess.running)
             return;
 
-        root.inFlightNames = root.queuedNames;
-        root.queuedNames = {};
+        root.inFlightRequests = root.queuedRequests;
+        root.queuedRequests = {};
 
-        const names = Object.keys(root.inFlightNames).map(key => root.inFlightNames[key]);
-        const command = IconSearch.findCommand(names, root.searchRoots);
+        const names = Object.keys(root.inFlightRequests).map(key => root.inFlightRequests[key].name);
+        const command = AppIconSearch.findCommand(names, root.searchRoots);
         if (command.length === 0) {
             root.finishScan("");
             return;
@@ -69,16 +73,19 @@ Singleton {
     }
 
     function finishScan(output) {
-        const names = Object.keys(root.inFlightNames).map(key => root.inFlightNames[key]);
-        const matches = IconSearch.selectPaths(output, names, root.searchRoots, root.preferredSize);
+        const requests = Object.keys(root.inFlightRequests).map(key => root.inFlightRequests[key]);
+        const candidates = AppIconSearch.candidatePaths(output, requests.map(request => request.name));
         const updatedPaths = Object.assign({}, root.resolvedPaths);
-        for (const key of Object.keys(root.inFlightNames))
-            updatedPaths[key] = IconSearch.hasOwn(matches, key) ? matches[key] : "";
+        for (const key of Object.keys(root.inFlightRequests)) {
+            const request = root.inFlightRequests[key];
+            const iconKey = AppIconSearch.cacheKey(request.name);
+            updatedPaths[key] = AppIconSearch.bestPath(candidates[iconKey], root.searchRoots, request.size);
+        }
 
-        root.inFlightNames = {};
+        root.inFlightRequests = {};
         root.resolvedPaths = updatedPaths;
 
-        if (Object.keys(root.queuedNames).length > 0)
+        if (Object.keys(root.queuedRequests).length > 0)
             scanTimer.restart();
     }
 

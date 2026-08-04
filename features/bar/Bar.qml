@@ -107,7 +107,7 @@ PanelWindow {
         WindowsWidget {
             windows: window.visibleWindows
             activeWindowId: window.activeWindowId
-            useAppIcons: false
+            useAppIcons: true
             onWindowRequested: windowId => {
                 return NiriService.focusWindow(windowId);
             }

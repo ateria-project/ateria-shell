@@ -120,7 +120,7 @@ function candidateScore(path, roots, preferredSize) {
     const directoryIndex = rootIndex(path, roots);
     const root = directoryIndex < roots.length ? trimTrailingSlashes(roots[directoryIndex]) : "";
     const isUnthemed = root.toLocaleLowerCase().endsWith("/pixmaps");
-    // Native theme lookup has already failed. Keep standard fallbacks ahead of unrelated themes.
+    // Native app-icon lookup has already failed. Keep standard fallbacks ahead of unrelated themes.
     const sourceTier = lowerPath.includes("/hicolor/") ? 0 : isUnthemed ? 1 : 2;
     const contextTier = lowerPath.includes("/apps/") ? 0 : 1;
     const extension = lowerPath.match(/\.([^.\/]+)$/);
@@ -145,13 +145,12 @@ function scorePrecedes(left, right) {
     return left[left.length - 1] < right[right.length - 1];
 }
 
-function selectPaths(output, requestedNames, roots, preferredSize) {
+function candidatePaths(output, requestedNames) {
     const requested = {};
     for (const name of uniqueNames(requestedNames))
         requested[cacheKey(name)] = true;
 
-    const paths = {};
-    const scores = {};
+    const candidates = {};
     for (const line of String(output || "").split("\n")) {
         const path = line.trim();
         const filename = path.match(/\/([^/]+)\.(png|svg|xpm)$/i);
@@ -162,11 +161,34 @@ function selectPaths(output, requestedNames, roots, preferredSize) {
         if (!hasOwn(requested, key))
             continue;
 
+        if (!hasOwn(candidates, key))
+            candidates[key] = [];
+        candidates[key].push(path);
+    }
+    return candidates;
+}
+
+function bestPath(candidates, roots, preferredSize) {
+    let selectedPath = "";
+    let selectedScore = null;
+    for (const path of candidates || []) {
         const score = candidateScore(path, roots, preferredSize);
-        if (!hasOwn(paths, key) || scorePrecedes(score, scores[key])) {
-            paths[key] = path;
-            scores[key] = score;
+        if (selectedScore === null || scorePrecedes(score, selectedScore)) {
+            selectedPath = path;
+            selectedScore = score;
         }
+    }
+    return selectedPath;
+}
+
+function selectPaths(output, requestedNames, roots, preferredSize) {
+    const candidates = candidatePaths(output, requestedNames);
+    const paths = {};
+    for (const name of uniqueNames(requestedNames)) {
+        const key = cacheKey(name);
+        const path = bestPath(candidates[key], roots, preferredSize);
+        if (path.length > 0)
+            paths[key] = path;
     }
     return paths;
 }
