@@ -3,8 +3,8 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
-import Quickshell
 import qs.components
+import qs.features.launcher.icons
 import qs.theme
 
 AbstractButton {
@@ -25,17 +25,7 @@ AbstractButton {
         const genericName = String(root.desktopEntry.genericName || "").trim();
         return genericName.length > 0 ? genericName : String(root.desktopEntry.id || "");
     }
-    readonly property string iconSource: {
-        if (!root.desktopEntry)
-            return "";
-
-        const iconName = String(root.desktopEntry.icon || "").trim();
-        if (iconName.length === 0)
-            return "";
-        if (iconName.startsWith("/") || iconName.includes("://"))
-            return iconName;
-        return Quickshell.iconPath(iconName, true);
-    }
+    readonly property string iconSource: IconResolver.source(root.desktopEntry ? root.desktopEntry.icon : "")
     readonly property string initial: root.appName.length > 0 ? root.appName.charAt(0).toUpperCase() : "?"
 
     Accessible.name: root.appDescription.length > 0 ? qsTr("%1, %2").arg(root.appName).arg(root.appDescription) : root.appName
@@ -75,6 +65,7 @@ AbstractButton {
                     color: Theme.scheme.onPrimaryContainer
                     font.pixelSize: 18
                     font.weight: Font.Medium
+                    font.family: Typography.monoFamily
                 }
             }
 
@@ -83,8 +74,8 @@ AbstractButton {
 
                 anchors.fill: parent
                 source: root.iconSource
-                sourceSize.width: 80
-                sourceSize.height: 80
+                sourceSize.width: IconResolver.preferredSize
+                sourceSize.height: IconResolver.preferredSize
                 asynchronous: true
                 fillMode: Image.PreserveAspectFit
                 visible: root.iconSource.length > 0 && status !== Image.Error
