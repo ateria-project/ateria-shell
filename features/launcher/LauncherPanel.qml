@@ -204,14 +204,6 @@ PanelWindow {
         opacity: root.open ? 1 : 0
         scale: root.open ? 1 : 0.94
 
-        Behavior on width {
-            NumberAnimation {
-                duration: Motion.durationMedium
-                easing.type: Motion.easingStandard
-                easing.bezierCurve: Motion.standardCurve
-            }
-        }
-
         Behavior on height {
             NumberAnimation {
                 duration: Motion.durationMedium
