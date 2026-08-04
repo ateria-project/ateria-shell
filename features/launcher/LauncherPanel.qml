@@ -142,11 +142,11 @@ PanelWindow {
 
         anchors.fill: parent
         color: Theme.scheme.scrim
-        opacity: root.open ? 0.32 : 0
+        opacity: root.open ? 0.2 : 0
 
         Behavior on opacity {
             NumberAnimation {
-                duration: root.open ? Motion.durationMedium : Motion.durationShort
+                duration: Motion.durationShort
                 easing.type: root.open ? Motion.easingStandardDecelerate : Motion.easingStandardAccelerate
                 easing.bezierCurve: root.open ? Motion.standardDecelerateCurve : Motion.standardAccelerateCurve
             }
