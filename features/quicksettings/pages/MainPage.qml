@@ -164,6 +164,7 @@ M3Panel {
 
                 style: M3Button.Tonal
                 containerColor: Theme.scheme.surfaceContainerHighest
+                Accessible.name: "Power menu"
 
                 onClicked: powerMenu.open()
 
@@ -171,60 +172,104 @@ M3Panel {
                     id: powerMenu
 
                     x: 0
-                    y: -height - 8
-                    width: 160
-                    padding: 6
+                    y: -height - Metrics.spacingXs
+                    width: 176
+                    padding: Metrics.spacingXs
                     modal: true
                     dim: false
                     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                    transformOrigin: Item.BottomLeft
+
+                    enter: Transition {
+                        ParallelAnimation {
+                            NumberAnimation {
+                                property: "opacity"
+                                from: 0
+                                to: 1
+                                duration: Motion.durationShort
+                                easing.type: Motion.easingStandardDecelerate
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
+
+                            NumberAnimation {
+                                property: "scale"
+                                from: 0.96
+                                to: 1
+                                duration: Motion.durationShort
+                                easing.type: Motion.easingStandardDecelerate
+                                easing.bezierCurve: Motion.standardDecelerateCurve
+                            }
+                        }
+                    }
+
+                    exit: Transition {
+                        ParallelAnimation {
+                            NumberAnimation {
+                                property: "opacity"
+                                from: 1
+                                to: 0
+                                duration: Motion.durationShort
+                                easing.type: Motion.easingStandardAccelerate
+                                easing.bezierCurve: Motion.standardAccelerateCurve
+                            }
+
+                            NumberAnimation {
+                                property: "scale"
+                                from: 1
+                                to: 0.96
+                                duration: Motion.durationShort
+                                easing.type: Motion.easingStandardAccelerate
+                                easing.bezierCurve: Motion.standardAccelerateCurve
+                            }
+                        }
+                    }
 
                     background: Rectangle {
-                        radius: 16
+                        radius: Metrics.radiusSm
                         color: Theme.scheme.surfaceContainerHigh
-                        border.width: 1
-                        border.color: Theme.scheme.outlineVariant
                     }
 
                     contentItem: ColumnLayout {
-                        spacing: 2
+                        spacing: 0
 
-                        M3Button {
-                            text: "Lock"
-                            iconName: "lock"
-                            iconSize: 18
-                            Layout.fillWidth: true
-                            style: M3Button.Text
-                            contentColor: Theme.scheme.onSurface
-                            onClicked: {
+                        PowerMenuItem {
+                            label: "Lock"
+                            menuIcon: "lock"
+                            onActivated: {
                                 powerMenu.close();
                                 PowerService.lock();
                             }
+                            Layout.fillWidth: true
                         }
 
-                        M3Button {
-                            text: "Reboot"
-                            iconName: "restart_alt"
-                            iconSize: 18
-                            Layout.fillWidth: true
-                            style: M3Button.Text
-                            contentColor: Theme.scheme.onSurface
-                            onClicked: {
+                        PowerMenuItem {
+                            label: "Reboot"
+                            menuIcon: "restart_alt"
+                            onActivated: {
                                 powerMenu.close();
                                 PowerService.reboot();
                             }
+                            Layout.fillWidth: true
                         }
 
-                        M3Button {
-                            text: "Shutdown"
-                            iconName: "power_settings_new"
-                            iconSize: 18
+                        Rectangle {
                             Layout.fillWidth: true
-                            style: M3Button.Text
-                            contentColor: Theme.scheme.error
-                            onClicked: {
+                            Layout.topMargin: 2
+                            Layout.bottomMargin: 2
+                            Layout.preferredHeight: 1
+                            color: Theme.scheme.outlineVariant
+                            opacity: 0.5
+                        }
+
+                        PowerMenuItem {
+                            label: "Shutdown"
+                            menuIcon: "power_settings_new"
+                            itemColor: Theme.scheme.error
+                            onActivated: {
                                 powerMenu.close();
                                 PowerService.shutdown();
                             }
+                            Layout.fillWidth: true
                         }
                     }
                 }
@@ -303,5 +348,78 @@ M3Panel {
                 containerColor: Theme.scheme.surfaceContainerHighest
             }
         }
+    }
+
+    component PowerMenuItem: AbstractButton {
+        id: menuItem
+
+        property string label: ""
+        property string menuIcon: ""
+        property color itemColor: Theme.scheme.onSurfaceVariant
+
+        signal activated
+
+        implicitHeight: 34
+        Layout.fillWidth: true
+        padding: 0
+        hoverEnabled: true
+        Accessible.name: menuItem.label
+
+        background: Rectangle {
+            radius: Metrics.radiusSm
+            color: "transparent"
+
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                color: menuItem.itemColor
+                opacity: {
+                    if (menuItem.down)
+                        return Theme.statePressedOpacity;
+                    if (menuItem.hovered)
+                        return Theme.stateHoverOpacity;
+                    if (menuItem.visualFocus)
+                        return Theme.stateFocusOpacity;
+                    return 0;
+                }
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: Motion.durationShort
+                        easing.type: Motion.easingStandard
+                        easing.bezierCurve: Motion.standardCurve
+                    }
+                }
+            }
+        }
+
+        contentItem: RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: Metrics.spacingSm
+            anchors.rightMargin: Metrics.spacingSm
+            spacing: Metrics.spacingSm
+
+            M3Icon {
+                name: menuItem.menuIcon
+                size: 20
+                color: menuItem.itemColor
+                Layout.preferredWidth: 20
+                Layout.preferredHeight: 20
+            }
+
+            M3Text {
+                text: menuItem.label
+                color: menuItem.itemColor
+                font.pixelSize: 14
+                font.weight: Font.Medium
+                Layout.fillWidth: true
+            }
+        }
+
+        HoverHandler {
+            cursorShape: Qt.PointingHandCursor
+        }
+
+        onClicked: menuItem.activated()
     }
 }
