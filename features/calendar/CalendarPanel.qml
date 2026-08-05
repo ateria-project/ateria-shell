@@ -40,6 +40,55 @@ PanelWindow {
     WlrLayershell.exclusiveZone: 0
     visible: open
 
+    // Keep the input surface full-screen while open so clicks outside the
+    // panel can dismiss it.
+    anchors {
+        top: true
+        right: true
+        bottom: true
+        left: true
+    }
+
+    MouseArea {
+        anchors {
+            top: parent.top
+            right: parent.right
+            bottom: panelSurface.top
+            left: parent.left
+        }
+        onClicked: SurfaceController.closeCalendar()
+    }
+
+    MouseArea {
+        anchors {
+            top: panelSurface.bottom
+            right: parent.right
+            bottom: parent.bottom
+            left: parent.left
+        }
+        onClicked: SurfaceController.closeCalendar()
+    }
+
+    MouseArea {
+        anchors {
+            top: panelSurface.top
+            right: panelSurface.left
+            bottom: panelSurface.bottom
+            left: parent.left
+        }
+        onClicked: SurfaceController.closeCalendar()
+    }
+
+    MouseArea {
+        anchors {
+            top: panelSurface.top
+            right: parent.right
+            bottom: panelSurface.bottom
+            left: panelSurface.right
+        }
+        onClicked: SurfaceController.closeCalendar()
+    }
+
     function sameMonth(a, b) {
         return a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
     }
@@ -110,7 +159,13 @@ PanelWindow {
 
     M3Panel {
         id: panelSurface
-        anchors.fill: parent
+        anchors {
+            top: parent.top
+            horizontalCenter: parent.horizontalCenter
+            topMargin: 6
+        }
+        width: root.implicitWidth
+        height: root.implicitHeight
         radius: 16
         color: Theme.scheme.surfaceContainer
 

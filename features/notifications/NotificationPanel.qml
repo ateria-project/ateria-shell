@@ -27,22 +27,58 @@ PanelWindow {
     screen: SurfaceController.activeScreen
     visible: root.open
     implicitWidth: root.panelWidth
+    // Keep the input surface full-screen while open so clicks outside the
+    // panel can dismiss it.
     // Keep the native layer surface stable while the masked panel animates.
     implicitHeight: root.maximumPanelHeight
     color: "transparent"
     WlrLayershell.exclusiveZone: 0
-    mask: Region {
-        item: panelSurface
-    }
 
     anchors {
         top: true
         right: true
+        bottom: true
+        left: true
     }
 
-    margins {
-        top: 6
-        right: 6
+    MouseArea {
+        anchors {
+            top: parent.top
+            right: parent.right
+            bottom: panelSurface.top
+            left: parent.left
+        }
+        onClicked: SurfaceController.closeNotificationPanel()
+    }
+
+    MouseArea {
+        anchors {
+            top: panelSurface.bottom
+            right: parent.right
+            bottom: parent.bottom
+            left: parent.left
+        }
+        onClicked: SurfaceController.closeNotificationPanel()
+    }
+
+    MouseArea {
+        anchors {
+            top: panelSurface.top
+            right: panelSurface.left
+            bottom: panelSurface.bottom
+            left: parent.left
+        }
+        onClicked: SurfaceController.closeNotificationPanel()
+    }
+
+    MouseArea {
+        anchors {
+            top: panelSurface.top
+            right: parent.right
+            bottom: panelSurface.bottom
+            left: panelSurface.right
+        }
+        onClicked: SurfaceController.closeNotificationPanel()
     }
 
     M3Panel {
@@ -51,6 +87,8 @@ PanelWindow {
         anchors {
             top: parent.top
             right: parent.right
+            topMargin: 6
+            rightMargin: 6
         }
         width: root.targetPanelWidth
         // Notification cards own the resize animation; follow their height directly.

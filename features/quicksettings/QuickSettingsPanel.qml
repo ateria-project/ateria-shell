@@ -30,13 +30,12 @@ PanelWindow {
     readonly property real targetPanelHeight: root.activePage && root.activePage.implicitHeight > 0 ? root.activePage.implicitHeight : mainPage.implicitHeight
 
     color: "transparent"
+    // Keep the input surface full-screen while open so clicks outside the
+    // panel can dismiss it.
     // Keep the native layer surface stable. Animating its size causes a
     // Wayland configure and a full page relayout on every frame.
     implicitWidth: Math.max(mainPage.implicitWidth, audioPage.implicitWidth, brightnessPage.implicitWidth)
     implicitHeight: Math.max(mainPage.implicitHeight, audioPage.implicitHeight, brightnessPage.implicitHeight)
-    mask: Region {
-        item: panelViewport
-    }
 
     onOpenChanged: {
         if (!open)
@@ -46,11 +45,48 @@ PanelWindow {
     anchors {
         top: true
         right: true
+        bottom: true
+        left: true
     }
 
-    margins {
-        top: 6
-        right: 6
+    MouseArea {
+        anchors {
+            top: parent.top
+            right: parent.right
+            bottom: panelViewport.top
+            left: parent.left
+        }
+        onClicked: SurfaceController.closeQuickSettings()
+    }
+
+    MouseArea {
+        anchors {
+            top: panelViewport.bottom
+            right: parent.right
+            bottom: parent.bottom
+            left: parent.left
+        }
+        onClicked: SurfaceController.closeQuickSettings()
+    }
+
+    MouseArea {
+        anchors {
+            top: panelViewport.top
+            right: panelViewport.left
+            bottom: panelViewport.bottom
+            left: parent.left
+        }
+        onClicked: SurfaceController.closeQuickSettings()
+    }
+
+    MouseArea {
+        anchors {
+            top: panelViewport.top
+            right: parent.right
+            bottom: panelViewport.bottom
+            left: panelViewport.right
+        }
+        onClicked: SurfaceController.closeQuickSettings()
     }
 
     QuickSettingsController {
@@ -63,6 +99,8 @@ PanelWindow {
         anchors {
             top: parent.top
             right: parent.right
+            topMargin: 6
+            rightMargin: 6
         }
         width: root.targetPanelWidth
         height: root.targetPanelHeight
