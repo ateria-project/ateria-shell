@@ -17,7 +17,7 @@ PanelWindow {
     id: root
 
     property bool open: SurfaceController.clipboardOpen
-    property real clipboardWidth: 620
+    property real clipboardWidth: 440
     property int maximumVisibleEntries: 8
     property int entryRowHeight: 56
     property real lastPointerSceneX: NaN

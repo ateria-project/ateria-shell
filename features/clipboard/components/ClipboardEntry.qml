@@ -48,6 +48,8 @@ AbstractButton {
             wrapMode: Text.Wrap
             font.pixelSize: 15
         }
+
+        Item {}
     }
 
     HoverHandler {
