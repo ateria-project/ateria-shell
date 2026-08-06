@@ -137,6 +137,23 @@ QtObject {
                 description: qsTr("Treat matches from this list as browsers, so dedicated music apps are preferred when both are available."),
                 group: "player priority",
                 order: 70
+            },
+            "hideWhenInactive": {
+                type: "bool",
+                defaultValue: true,
+                label: qsTr("Hide when inactive"),
+                description: qsTr("Automatically hide the media widget after being paused for a specified duration."),
+                group: "visibility",
+                order: 80
+            },
+            "inactiveTimeout": {
+                type: "int",
+                minimum: 1,
+                defaultValue: 300,
+                label: qsTr("Inactivity timeout (seconds)"),
+                description: qsTr("How many seconds to wait after playback is paused before hiding the media widget."),
+                group: "visibility",
+                order: 90
             }
         })
 
@@ -147,6 +164,8 @@ QtObject {
     readonly property var preferredMusicApplications: SettingsService.value("media", "preferredMusicApplications") || root.defaultPreferredMusicApplications
     readonly property var preferredMusicWebsites: SettingsService.value("media", "preferredMusicWebsites") || root.defaultPreferredMusicWebsites
     readonly property var browserApplications: SettingsService.value("media", "browserApplications") || root.defaultBrowserApplications
+    readonly property bool hideWhenInactive: SettingsService.value("media", "hideWhenInactive") ?? false
+    readonly property int inactiveTimeout: SettingsService.value("media", "inactiveTimeout") ?? 10
 
     function setApplicationFilterMode(value): bool {
         return SettingsService.setValue("media", "applicationFilterMode", value);
@@ -174,5 +193,13 @@ QtObject {
 
     function setBrowserApplications(value): bool {
         return SettingsService.setValue("media", "browserApplications", value);
+    }
+
+    function setHideWhenInactive(value): bool {
+        return SettingsService.setValue("media", "hideWhenInactive", value);
+    }
+
+    function setInactiveTimeout(value): bool {
+        return SettingsService.setValue("media", "inactiveTimeout", value);
     }
 }

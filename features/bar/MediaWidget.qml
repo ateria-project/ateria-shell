@@ -24,6 +24,33 @@ Rectangle {
     readonly property bool playing: MprisService.isPlaying
     readonly property string mediaKey: [MprisService.identity, MprisService.artist, MprisService.title, MprisService.artworkUrl].join("\u001f")
 
+    property bool inactiveHidden: false
+
+    Timer {
+        id: inactivityTimer
+
+        interval: MediaSettings.inactiveTimeout * 1000
+        repeat: false
+        onTriggered: root.inactiveHidden = true
+    }
+
+    function updateInactivityState() {
+        if (!MediaSettings.hideWhenInactive || !MprisService.available) {
+            inactivityTimer.stop();
+            root.inactiveHidden = false;
+            return;
+        }
+
+        if (root.playing) {
+            inactivityTimer.stop();
+            root.inactiveHidden = false;
+            return;
+        }
+
+        root.inactiveHidden = false;
+        inactivityTimer.restart();
+    }
+
     function restartMarquee() {
         marqueeAnimation.stop();
         hoverAnimation.stop();
@@ -49,19 +76,46 @@ Rectangle {
             root.startHoverMarquee(hovered);
     }
 
-    visible: MprisService.available
+    visible: MprisService.available && (!MediaSettings.hideWhenInactive || !root.inactiveHidden)
     implicitWidth: root.fixedContentWidth + root.fittedTextWidth
     implicitHeight: 28
     radius: Metrics.radiusFull
     color: Theme.scheme.surfaceContainer
 
-    onMediaKeyChanged: root.restartMarquee()
+    onMediaKeyChanged: {
+        root.restartMarquee();
+        root.updateInactivityState();
+    }
     onPlayingChanged: {
         if (root.playing)
             root.restartMarquee();
+        root.updateInactivityState();
     }
     onVisibleChanged: root.restartMarquee()
-    Component.onCompleted: root.restartMarquee()
+    Component.onCompleted: {
+        root.restartMarquee();
+        root.updateInactivityState();
+    }
+
+    Connections {
+        target: MediaSettings
+
+        function onHideWhenInactiveChanged() {
+            root.updateInactivityState();
+        }
+
+        function onInactiveTimeoutChanged() {
+            root.updateInactivityState();
+        }
+    }
+
+    Connections {
+        target: MprisService
+
+        function onAvailableChanged() {
+            root.updateInactivityState();
+        }
+    }
 
     HoverHandler {
         id: mediaHoverHandler
