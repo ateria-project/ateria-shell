@@ -10,7 +10,8 @@ Singleton {
         QuickSettings = 1,
         Calendar = 2,
         NotificationPanel = 3,
-        Launcher = 4
+        Launcher = 4,
+        Clipboard = 5
     }
 
     property int activeSurface: 0
@@ -19,6 +20,7 @@ Singleton {
     readonly property bool calendarOpen: root.activeSurface === 2
     readonly property bool notificationPanelOpen: root.activeSurface === 3
     readonly property bool launcherOpen: root.activeSurface === 4
+    readonly property bool clipboardOpen: root.activeSurface === 5
 
     function openSurface(surface: int, screen) {
         root.activeScreen = screen ?? null;
@@ -95,4 +97,19 @@ Singleton {
             root.closeSurface();
     }
     // End launcher
+
+    // Start clipboard
+    function toggleClipboard(screen) {
+        root.toggleSurface(5, screen);
+    }
+
+    function openClipboard(screen) {
+        root.openSurface(5, screen);
+    }
+
+    function closeClipboard() {
+        if (root.clipboardOpen)
+            root.closeSurface();
+    }
+    // End clipboard
 }

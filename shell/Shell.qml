@@ -2,11 +2,13 @@ import QtQuick
 import Quickshell
 import qs.features.bar
 import qs.features.calendar
+import qs.features.clipboard
 import qs.features.launcher
 import qs.features.notifications
 import qs.features.quicksettings
 import qs.features.wallpaper
 import qs.platform.notifications
+import qs.platform.clipboard
 import qs.platform.settings
 import qs.shell
 
@@ -16,6 +18,7 @@ Scope {
     Component.onCompleted: {
         SettingsBootstrap.initialize();
         NotificationService.initialize();
+        ClipboardService.initialize();
     }
 
     Variants {
@@ -60,6 +63,10 @@ Scope {
 
     LauncherPanel {
         id: launcherPanel
+    }
+
+    ClipboardPanel {
+        id: clipboardPanel
     }
 
     NotificationOverlay {
