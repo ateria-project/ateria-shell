@@ -91,7 +91,7 @@ QtObject {
             },
             "websiteFilterMode": {
                 type: "enum",
-                defaultValue: root.showAll,
+                defaultValue: root.showOnlyListed,
                 options: [
                     { id: root.showAll, label: qsTr("All websites") },
                     { id: root.showOnlyListed, label: qsTr("Only listed websites") },
@@ -105,7 +105,7 @@ QtObject {
             "websites": {
                 type: "list",
                 items: { type: "string" },
-                defaultValue: [],
+                defaultValue: root.defaultPreferredMusicWebsites,
                 label: qsTr("Websites"),
                 description: qsTr("Exact domains such as music.youtube.com or open.spotify.com. “youtube.com” and “music.youtube.com” are treated separately; use “*.youtube.com” to match every subdomain. Only browser apps are checked."),
                 group: "source filters",
