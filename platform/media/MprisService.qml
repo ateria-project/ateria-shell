@@ -6,68 +6,17 @@ import Quickshell.Services.Mpris
 Singleton {
     id: root
 
-    readonly property var preferredMusicPlayerHints: [
-        "spotify",
-        "ncspot",
-        "cider",
-        "apple-music",
-        "apple music",
-        "youtube-music",
-        "youtube music",
-        "tidal",
-        "deezer",
-        "rhythmbox",
-        "lollypop",
-        "amberol",
-        "elisa",
-        "audacious",
-        "strawberry",
-        "cantata",
-        "quodlibet",
-        "quod libet",
-        "tauon",
-        "gnome-music",
-        "gnome.music",
-        "g4music",
-        "nuclear",
-        "feishin",
-        "cmus",
-        "pithos",
-        "shortwave",
-        "gpodder",
-        "kasts",
-        "pocket-casts",
-        "pocket casts",
-        "music player daemon"
-    ]
-    readonly property var preferredMusicUrlHints: [
-        "open.spotify.com",
-        "music.apple.com",
-        "listen.tidal.com",
-        "deezer.com",
-        "music.youtube.com",
-        "soundcloud.com",
-        "bandcamp.com"
-    ]
-    readonly property var browserPlayerHints: [
-        "chromium",
-        "chrome",
-        "firefox",
-        "brave",
-        "vivaldi",
-        "helium",
-        "opera",
-        "microsoft-edge",
-        "zen-browser",
-        "floorp"
-    ]
+    readonly property var preferredMusicApplications: MediaSettings.preferredMusicApplications
+    readonly property var preferredMusicWebsites: MediaSettings.preferredMusicWebsites
+    readonly property var browserApplications: MediaSettings.browserApplications
     readonly property var players: Mpris.players.values
+    readonly property var eligiblePlayers: root.players.filter(root.playerIsAllowed)
     readonly property var activePlayer: {
         let selectedPlayer = null;
         let selectedScore = -1;
 
-        for (let index = 0; index < root.players.length; ++index) {
-            const player = root.players[index];
+        for (let index = 0; index < root.eligiblePlayers.length; ++index) {
+            const player = root.eligiblePlayers[index];
             const score = root.playerScore(player);
             if (score > selectedScore) {
                 selectedPlayer = player;
@@ -107,6 +56,104 @@ Singleton {
         ].join(" ").toLowerCase();
     }
 
+    function normalizedApplicationName(value): string {
+        return String(value ?? "").trim().toLowerCase().replace(/\.desktop$/, "");
+    }
+
+    function configuredApplicationNames(): var {
+        return String(MediaSettings.applications || "").split(/[,\n]/).map(value => root.normalizedApplicationName(value)).filter(value => value.length > 0);
+    }
+
+    function playerApplicationNames(player): var {
+        if (player === null || player === undefined)
+            return [];
+
+        return [
+            root.normalizedApplicationName(player.desktopEntry),
+            root.normalizedApplicationName(player.identity),
+            root.normalizedApplicationName(player.dbusName)
+        ].filter(value => value.length > 0);
+    }
+
+    function applicationIsAllowed(player): bool {
+        const filterMode = MediaSettings.applicationFilterMode;
+        if (filterMode === MediaSettings.allApplications)
+            return true;
+
+        const configuredApplications = root.configuredApplicationNames();
+        const applicationNames = root.playerApplicationNames(player);
+        const isListed = configuredApplications.some(name => applicationNames.indexOf(name) !== -1);
+
+        if (filterMode === MediaSettings.onlyListedApplications)
+            return isListed;
+
+        return !isListed;
+    }
+
+    function normalizedWebsite(value): string {
+        let website = String(value ?? "").trim().toLowerCase();
+        website = website.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+        website = website.split(/[/?#]/)[0].replace(/^www\./, "").replace(/:\d+$/, "").replace(/\.$/, "");
+        return website;
+    }
+
+    function normalizedWebsitePattern(value): string {
+        const pattern = String(value ?? "").trim().toLowerCase();
+        if (pattern.startsWith("*."))
+            return "*." + root.normalizedWebsite(pattern.slice(2));
+
+        return root.normalizedWebsite(pattern);
+    }
+
+    function configuredWebsitePatterns(): var {
+        return String(MediaSettings.websites || "").split(/[,\n]/).map(value => root.normalizedWebsitePattern(value)).filter(value => value.length > 0);
+    }
+
+    function playerWebsite(player): string {
+        if (player === null || player === undefined)
+            return "";
+
+        const metadata = player.metadata ?? {};
+        return root.normalizedWebsite(metadata["xesam:url"] ?? "");
+    }
+
+    function websiteMatchesPattern(website: string, pattern: string): bool {
+        if (pattern.startsWith("*.")) {
+            const suffix = pattern.slice(1);
+            return website.endsWith(suffix) && website.length > suffix.length;
+        }
+
+        return website === pattern;
+    }
+
+    function playerIsBrowser(player): bool {
+        if (player === null || player === undefined)
+            return false;
+
+        return root.matchesHint(root.playerKey(player), root.browserApplications);
+    }
+
+    function websiteIsAllowed(player): bool {
+        if (!root.playerIsBrowser(player))
+            return true;
+
+        const filterMode = MediaSettings.websiteFilterMode;
+        if (filterMode === MediaSettings.allWebsites)
+            return true;
+
+        const website = root.playerWebsite(player);
+        const isListed = website.length > 0 && root.configuredWebsitePatterns().some(pattern => root.websiteMatchesPattern(website, pattern));
+
+        if (filterMode === MediaSettings.onlyListedWebsites)
+            return isListed;
+
+        return !isListed;
+    }
+
+    function playerIsAllowed(player): bool {
+        return root.applicationIsAllowed(player) && root.websiteIsAllowed(player);
+    }
+
     function matchesHint(value: string, hints): bool {
         for (const hint of hints) {
             if (value.includes(hint))
@@ -120,9 +167,9 @@ Singleton {
         const key = root.playerKey(player);
         const metadata = player.metadata ?? {};
         const trackUrl = String(metadata["xesam:url"] ?? "").toLowerCase();
-        if (root.matchesHint(key, root.preferredMusicPlayerHints) || root.matchesHint(trackUrl, root.preferredMusicUrlHints))
+        if (root.matchesHint(key, root.preferredMusicApplications) || root.matchesHint(trackUrl, root.preferredMusicWebsites))
             return 40;
-        if (root.matchesHint(key, root.browserPlayerHints))
+        if (root.playerIsBrowser(player))
             return -10;
 
         return 0;
