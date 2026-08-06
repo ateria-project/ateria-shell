@@ -22,7 +22,7 @@ QtObject {
                 type: "string",
                 defaultValue: "",
                 label: qsTr("Wallpaper"),
-                description: qsTr("The image file used as the wallpaper."),
+                description: qsTr("The image file path used as the wallpaper."),
                 group: "general",
                 order: 20
             }
