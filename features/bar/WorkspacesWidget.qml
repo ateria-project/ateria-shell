@@ -163,26 +163,27 @@ Rectangle {
 
                 contentItem: Item {
                     M3Text {
+                        id: numberText
+
                         anchors.centerIn: parent
-                        visible: control.active || root.showWorkspaceNumbers
                         text: String(control.workspaceIndex)
-                        color: control.active
-                            ? (control.urgent ? Theme.scheme.onError : Theme.scheme.onPrimary)
-                            : (control.urgent ? Theme.scheme.error : Theme.scheme.onSurface)
-                        opacity: control.active || control.occupied ? 1 : 0.65
+                        color: control.active ? (control.urgent ? Theme.scheme.onError : Theme.scheme.onPrimary) : (control.urgent ? Theme.scheme.error : Theme.scheme.onSurfaceVariant)
+                        opacity: control.active ? 1.0 : (root.showWorkspaceNumbers ? (control.occupied ? 0.85 : 0.6) : 0.0)
+                        visible: opacity > 0
                         font.family: Typography.monoFamily
                         font.pixelSize: 14
                         font.weight: Font.Medium
                     }
-
                     Rectangle {
+                        id: indicatorDot
+
                         anchors.centerIn: parent
-                        visible: !control.active && !root.showWorkspaceNumbers
                         width: 5
                         height: width
                         radius: width / 2
-                        color: control.urgent ? Theme.scheme.error : Theme.scheme.onSurface
-                        opacity: control.occupied ? 0.85 : 0.55
+                        color: control.urgent ? Theme.scheme.error : Theme.scheme.onSurfaceVariant
+                        opacity: !control.active && !root.showWorkspaceNumbers ? (control.occupied ? 0.85 : 0.55) : 0.0
+                        visible: opacity > 0
 
                         Behavior on color {
                             ColorAnimation {
