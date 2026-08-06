@@ -61,7 +61,7 @@ Singleton {
     }
 
     function configuredApplicationNames(): var {
-        return String(MediaSettings.applications || "").split(/[,\n]/).map(value => root.normalizedApplicationName(value)).filter(value => value.length > 0);
+        return MediaSettings.applications.map(value => root.normalizedApplicationName(value)).filter(value => value.length > 0);
     }
 
     function playerApplicationNames(player): var {
@@ -77,14 +77,14 @@ Singleton {
 
     function applicationIsAllowed(player): bool {
         const filterMode = MediaSettings.applicationFilterMode;
-        if (filterMode === MediaSettings.allApplications)
+        if (filterMode === MediaSettings.showAll)
             return true;
 
         const configuredApplications = root.configuredApplicationNames();
         const applicationNames = root.playerApplicationNames(player);
         const isListed = configuredApplications.some(name => applicationNames.indexOf(name) !== -1);
 
-        if (filterMode === MediaSettings.onlyListedApplications)
+        if (filterMode === MediaSettings.showOnlyListed)
             return isListed;
 
         return !isListed;
@@ -106,7 +106,7 @@ Singleton {
     }
 
     function configuredWebsitePatterns(): var {
-        return String(MediaSettings.websites || "").split(/[,\n]/).map(value => root.normalizedWebsitePattern(value)).filter(value => value.length > 0);
+        return MediaSettings.websites.map(value => root.normalizedWebsitePattern(value)).filter(value => value.length > 0);
     }
 
     function playerWebsite(player): string {
@@ -138,13 +138,13 @@ Singleton {
             return true;
 
         const filterMode = MediaSettings.websiteFilterMode;
-        if (filterMode === MediaSettings.allWebsites)
+        if (filterMode === MediaSettings.showAll)
             return true;
 
         const website = root.playerWebsite(player);
         const isListed = website.length > 0 && root.configuredWebsitePatterns().some(pattern => root.websiteMatchesPattern(website, pattern));
 
-        if (filterMode === MediaSettings.onlyListedWebsites)
+        if (filterMode === MediaSettings.showOnlyListed)
             return isListed;
 
         return !isListed;

@@ -9,52 +9,27 @@ QtObject {
 
     readonly property int maximumHistoryEntries: 200
     readonly property var schema: ({
-            "launcher.usageHistory": {
-                type: "string",
-                defaultValue: "{}",
+            "usageHistory": {
+                type: "map",
+                values: {
+                    type: "object",
+                    properties: {
+                        count: { type: "int", minimum: 1 },
+                        lastLaunched: { type: "real", minimum: 0 }
+                    },
+                    required: ["count", "lastLaunched"]
+                },
+                defaultValue: ({}),
                 label: qsTr("Application usage history"),
                 description: qsTr("Ranks frequently and recently launched applications higher in launcher search."),
                 group: "search",
                 order: 10
             }
         })
-    readonly property string usageHistoryJson: SettingsService.ready ? SettingsService.value("launcher.usageHistory") || "{}" : "{}"
-    readonly property var usageHistory: root.parseUsageHistory(root.usageHistoryJson)
+    readonly property var usageHistory: SettingsService.ready ? SettingsService.value("launcher", "usageHistory") : ({})
 
     function hasOwn(object, key): bool {
         return object !== null && object !== undefined && Object.prototype.hasOwnProperty.call(object, key);
-    }
-
-    function parseUsageHistory(serialized): var {
-        try {
-            const parsed = JSON.parse(String(serialized || "{}"));
-            if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
-                return {};
-
-            const sanitized = {};
-            const keys = Object.keys(parsed);
-            for (let index = 0; index < keys.length; ++index) {
-                const key = keys[index];
-                const record = parsed[key];
-                if (!record || typeof record !== "object")
-                    continue;
-
-                const count = Math.max(0, Math.round(Number(record.count)));
-                const lastLaunched = Math.max(0, Math.round(Number(record.lastLaunched)));
-                if (!Number.isFinite(count) || count === 0 || !Number.isFinite(lastLaunched))
-                    continue;
-
-                sanitized[key] = {
-                    "count": count,
-                    "lastLaunched": lastLaunched
-                };
-            }
-
-            return sanitized;
-        } catch (error) {
-            console.warn("LauncherSettings: failed to parse application usage history: " + error);
-            return {};
-        }
     }
 
     function applicationKey(desktopEntry): string {
@@ -93,6 +68,6 @@ QtObject {
             "lastLaunched": Date.now()
         };
 
-        return SettingsService.setValue("launcher.usageHistory", JSON.stringify(root.prunedHistory(history)));
+        return SettingsService.setValue("launcher", "usageHistory", root.prunedHistory(history));
     }
 }

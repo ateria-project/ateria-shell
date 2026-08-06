@@ -20,10 +20,10 @@ QtObject {
         // Unknown JSON keys are removed during reconciliation, so omitting a
         // schema here will remove its persisted settings.
         let registrationSucceeded = true;
-        registrationSucceeded = SettingsService.registerSchema(MediaSettings.schema) && registrationSucceeded;
-        registrationSucceeded = SettingsService.registerSchema(ExampleSettings.schema) && registrationSucceeded;
-        registrationSucceeded = SettingsService.registerSchema(LauncherSettings.schema) && registrationSucceeded;
-        registrationSucceeded = SettingsService.registerSchema(WallpaperSettings.schema) && registrationSucceeded;
+        registrationSucceeded = SettingsService.registerSchema("media", MediaSettings.schema) && registrationSucceeded;
+        registrationSucceeded = SettingsService.registerSchema("example", ExampleSettings.schema) && registrationSucceeded;
+        registrationSucceeded = SettingsService.registerSchema("launcher", LauncherSettings.schema) && registrationSucceeded;
+        registrationSucceeded = SettingsService.registerSchema("wallpaper", WallpaperSettings.schema) && registrationSucceeded;
 
         if (!registrationSucceeded) {
             console.error("SettingsBootstrap: schema registration failed");

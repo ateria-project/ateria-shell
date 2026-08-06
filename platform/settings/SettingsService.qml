@@ -14,6 +14,7 @@ QtObject {
     property bool dirty: false
     property string lastError: ""
 
+    readonly property int schemaVersion: 1
     readonly property string configDirectory: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation) + "/ateria"
     readonly property string settingsFile: root.configDirectory + "/settings.json"
 
@@ -30,195 +31,331 @@ QtObject {
         return object !== null && object !== undefined && Object.prototype.hasOwnProperty.call(object, key);
     }
 
-    function compareSettingKeys(left, right) {
+    function copiedValue(value) {
+        if (Array.isArray(value) || root.isPlainObject(value))
+            return JSON.parse(JSON.stringify(value));
+
+        return value;
+    }
+
+    function compareKeys(left, right) {
         if (left < right)
             return -1;
-
         if (left > right)
             return 1;
 
         return 0;
     }
 
-    function sortedSchemaKeys() {
-        return Object.keys(root.schema).sort(root.compareSettingKeys);
+    function nameIsValid(name) {
+        return typeof name === "string" && /^[A-Za-z][A-Za-z0-9]*$/.test(name);
     }
 
-    function settingKeyIsValid(key) {
-        return typeof key === "string" && /^[^.]+\.[^.]+$/.test(key);
+    function enumOptionIds(definition) {
+        return definition.options.map(option => option.id);
     }
 
-    function isFiniteNumber(candidate) {
-        return typeof candidate === "number" && Number.isFinite(candidate);
-    }
-
-    function definitionIsValid(key, definition) {
-        if (!root.isPlainObject(definition)) {
-            console.warn("SettingsService: definition for " + key + " must be an object");
+    function enumOptionsAreValid(options) {
+        if (!Array.isArray(options) || options.length === 0)
             return false;
-        }
 
-        if (!root.hasOwn(definition, "type") || !root.hasOwn(definition, "defaultValue")) {
-            console.warn("SettingsService: definition for " + key + " must contain type and defaultValue");
-            return false;
-        }
+        const ids = [];
+        for (let index = 0; index < options.length; ++index) {
+            const option = options[index];
+            if (!root.isPlainObject(option) || typeof option.id !== "string" || option.id.length === 0 || typeof option.label !== "string" || option.label.length === 0)
+                return false;
+            if (ids.indexOf(option.id) !== -1)
+                return false;
 
-        const type = definition.type;
-        if (["bool", "int", "real", "string", "enum"].indexOf(type) === -1) {
-            console.warn("SettingsService: unsupported type for " + key + ": " + type);
-            return false;
-        }
-
-        if (type === "enum" && (!Array.isArray(definition.options) || definition.options.length === 0)) {
-            console.warn("SettingsService: enum " + key + " requires non-empty options");
-            return false;
-        }
-
-        if (root.hasOwn(definition, "minimum") && !root.isFiniteNumber(definition.minimum)) {
-            console.warn("SettingsService: minimum for " + key + " must be finite");
-            return false;
-        }
-
-        if (root.hasOwn(definition, "maximum") && !root.isFiniteNumber(definition.maximum)) {
-            console.warn("SettingsService: maximum for " + key + " must be finite");
-            return false;
-        }
-
-        if ((root.hasOwn(definition, "minimum") || root.hasOwn(definition, "maximum")) && type !== "int" && type !== "real") {
-            console.warn("SettingsService: minimum and maximum only apply to numeric settings");
-            return false;
-        }
-
-        if (root.hasOwn(definition, "minimum") && root.hasOwn(definition, "maximum") && definition.minimum > definition.maximum) {
-            console.warn("SettingsService: minimum exceeds maximum for " + key);
-            return false;
-        }
-
-        if (!root.defaultMatchesDefinition(definition, definition.defaultValue)) {
-            console.warn("SettingsService: invalid defaultValue for " + key);
-            return false;
+            ids.push(option.id);
         }
 
         return true;
     }
 
-    function candidateHasCorrectType(definition, candidate) {
-        switch (definition.type) {
-        case "bool":
-            return typeof candidate === "boolean";
-        case "int":
-        case "real":
-            return root.isFiniteNumber(candidate);
-        case "string":
-            return typeof candidate === "string";
-        case "enum":
-            return definition.options.indexOf(candidate) !== -1;
-        }
-
-        return false;
-    }
-
-    function defaultMatchesDefinition(definition, candidate) {
-        if (!root.candidateHasCorrectType(definition, candidate))
+    function requiredPropertiesAreValid(definition) {
+        if (!root.hasOwn(definition, "required"))
+            return true;
+        if (!Array.isArray(definition.required))
             return false;
 
-        return (definition.type !== "int" && definition.type !== "real") || ((!root.hasOwn(definition, "minimum") || candidate >= definition.minimum) && (!root.hasOwn(definition, "maximum") || candidate <= definition.maximum));
+        const seen = [];
+        for (let index = 0; index < definition.required.length; ++index) {
+            const name = definition.required[index];
+            if (typeof name !== "string" || !root.hasOwn(definition.properties, name) || seen.indexOf(name) !== -1)
+                return false;
+
+            seen.push(name);
+        }
+
+        return true;
     }
 
-    function registerSchema(definitions) {
+    function definitionIsValid(path, definition, defaultRequired) {
+        if (!root.isPlainObject(definition)) {
+            console.warn("SettingsService: definition for " + path + " must be an object");
+            return false;
+        }
+        if (typeof definition.type !== "string") {
+            console.warn("SettingsService: definition for " + path + " requires a type");
+            return false;
+        }
+        if (defaultRequired && !root.hasOwn(definition, "defaultValue")) {
+            console.warn("SettingsService: setting " + path + " requires a defaultValue");
+            return false;
+        }
+
+        const supportedTypes = ["bool", "int", "real", "string", "enum", "list", "object", "map"];
+        if (supportedTypes.indexOf(definition.type) === -1) {
+            console.warn("SettingsService: unsupported type for " + path + ": " + definition.type);
+            return false;
+        }
+
+        if (definition.type === "enum" && !root.enumOptionsAreValid(definition.options)) {
+            console.warn("SettingsService: enum " + path + " requires unique options with stable ids and labels");
+            return false;
+        }
+
+        if (definition.type === "list") {
+            if (!root.hasOwn(definition, "items") || !root.definitionIsValid(path + "[]", definition.items, false)) {
+                console.warn("SettingsService: list " + path + " requires a valid items schema");
+                return false;
+            }
+        }
+
+        if (definition.type === "object") {
+            if (!root.isPlainObject(definition.properties)) {
+                console.warn("SettingsService: object " + path + " requires properties");
+                return false;
+            }
+
+            const propertyNames = Object.keys(definition.properties);
+            for (let index = 0; index < propertyNames.length; ++index) {
+                const propertyName = propertyNames[index];
+                if (!root.nameIsValid(propertyName) || !root.definitionIsValid(path + "." + propertyName, definition.properties[propertyName], false))
+                    return false;
+            }
+
+            if (!root.requiredPropertiesAreValid(definition)) {
+                console.warn("SettingsService: object " + path + " has invalid required properties");
+                return false;
+            }
+        }
+
+        if (definition.type === "map") {
+            if (!root.hasOwn(definition, "values") || !root.definitionIsValid(path + ".*", definition.values, false)) {
+                console.warn("SettingsService: map " + path + " requires a valid values schema");
+                return false;
+            }
+        }
+
+        if (root.hasOwn(definition, "minimum") && (typeof definition.minimum !== "number" || !Number.isFinite(definition.minimum))) {
+            console.warn("SettingsService: minimum for " + path + " must be finite");
+            return false;
+        }
+        if (root.hasOwn(definition, "maximum") && (typeof definition.maximum !== "number" || !Number.isFinite(definition.maximum))) {
+            console.warn("SettingsService: maximum for " + path + " must be finite");
+            return false;
+        }
+        if ((root.hasOwn(definition, "minimum") || root.hasOwn(definition, "maximum")) && definition.type !== "int" && definition.type !== "real") {
+            console.warn("SettingsService: minimum and maximum only apply to numeric settings");
+            return false;
+        }
+        if (root.hasOwn(definition, "minimum") && root.hasOwn(definition, "maximum") && definition.minimum > definition.maximum) {
+            console.warn("SettingsService: minimum exceeds maximum for " + path);
+            return false;
+        }
+
+        if (root.hasOwn(definition, "defaultValue")) {
+            const validatedDefault = root.validatedValue(definition, definition.defaultValue, true);
+            if (!validatedDefault.valid || JSON.stringify(validatedDefault.value) !== JSON.stringify(definition.defaultValue)) {
+                console.warn("SettingsService: invalid defaultValue for " + path);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function validatedValue(definition, candidate, strict) {
+        switch (definition.type) {
+        case "bool":
+            return { valid: typeof candidate === "boolean", value: candidate };
+        case "string":
+            return { valid: typeof candidate === "string", value: candidate };
+        case "enum":
+            return { valid: typeof candidate === "string" && root.enumOptionIds(definition).indexOf(candidate) !== -1, value: candidate };
+        case "int":
+        case "real": {
+            if (typeof candidate !== "number" || !Number.isFinite(candidate))
+                return { valid: false };
+            if (strict && definition.type === "int" && !Number.isInteger(candidate))
+                return { valid: false };
+            if (strict && root.hasOwn(definition, "minimum") && candidate < definition.minimum)
+                return { valid: false };
+            if (strict && root.hasOwn(definition, "maximum") && candidate > definition.maximum)
+                return { valid: false };
+
+            let value = definition.type === "int" ? Math.round(candidate) : candidate;
+            if (root.hasOwn(definition, "minimum"))
+                value = Math.max(definition.minimum, value);
+            if (root.hasOwn(definition, "maximum"))
+                value = Math.min(definition.maximum, value);
+
+            return { valid: true, value: value };
+        }
+        case "list": {
+            if (!Array.isArray(candidate))
+                return { valid: false };
+
+            const list = [];
+            for (let index = 0; index < candidate.length; ++index) {
+                const item = root.validatedValue(definition.items, candidate[index], strict);
+                if (item.valid)
+                    list.push(item.value);
+                else if (strict)
+                    return { valid: false };
+            }
+
+            return { valid: true, value: list };
+        }
+        case "object": {
+            if (!root.isPlainObject(candidate))
+                return { valid: false };
+
+            const result = {};
+            const propertyNames = Object.keys(definition.properties).sort(root.compareKeys);
+            if (strict && Object.keys(candidate).some(name => propertyNames.indexOf(name) === -1))
+                return { valid: false };
+
+            const required = root.hasOwn(definition, "required") ? definition.required : [];
+            for (let index = 0; index < propertyNames.length; ++index) {
+                const propertyName = propertyNames[index];
+                const propertyDefinition = definition.properties[propertyName];
+
+                if (!root.hasOwn(candidate, propertyName)) {
+                    if (root.hasOwn(propertyDefinition, "defaultValue"))
+                        result[propertyName] = root.copiedValue(propertyDefinition.defaultValue);
+                    else if (required.indexOf(propertyName) !== -1)
+                        return { valid: false };
+                    continue;
+                }
+
+                const property = root.validatedValue(propertyDefinition, candidate[propertyName], strict);
+                if (property.valid)
+                    result[propertyName] = property.value;
+                else if (strict)
+                    return { valid: false };
+                else if (root.hasOwn(propertyDefinition, "defaultValue"))
+                    result[propertyName] = root.copiedValue(propertyDefinition.defaultValue);
+                else if (required.indexOf(propertyName) !== -1)
+                    return { valid: false };
+            }
+
+            return { valid: true, value: result };
+        }
+        case "map": {
+            if (!root.isPlainObject(candidate))
+                return { valid: false };
+
+            const result = {};
+            const keys = Object.keys(candidate).sort(root.compareKeys);
+            for (let index = 0; index < keys.length; ++index) {
+                const entry = root.validatedValue(definition.values, candidate[keys[index]], strict);
+                if (entry.valid)
+                    result[keys[index]] = entry.value;
+                else if (strict)
+                    return { valid: false };
+            }
+
+            return { valid: true, value: result };
+        }
+        }
+
+        return { valid: false };
+    }
+
+    function registerSchema(namespace, definitions) {
         if (root.ready || root.loadInProgress) {
             console.warn("SettingsService: registerSchema() must run before load()");
             return false;
         }
-
+        if (!root.nameIsValid(namespace)) {
+            console.warn("SettingsService: invalid schema namespace: " + namespace);
+            return false;
+        }
         if (!root.isPlainObject(definitions)) {
-            console.warn("SettingsService: schema definitions must be an object");
+            console.warn("SettingsService: schema namespace " + namespace + " must be an object");
+            return false;
+        }
+        if (root.hasOwn(root.schema, namespace)) {
+            console.warn("SettingsService: duplicate schema namespace: " + namespace);
             return false;
         }
 
-        const keys = Object.keys(definitions);
-        for (let index = 0; index < keys.length; ++index) {
-            const key = keys[index];
-
-            if (!root.settingKeyIsValid(key)) {
-                console.warn("SettingsService: invalid setting key: " + key);
+        const settingNames = Object.keys(definitions);
+        for (let index = 0; index < settingNames.length; ++index) {
+            const settingName = settingNames[index];
+            if (!root.nameIsValid(settingName)) {
+                console.warn("SettingsService: invalid setting name: " + namespace + "." + settingName);
                 return false;
             }
-
-            if (root.hasOwn(root.schema, key)) {
-                console.warn("SettingsService: duplicate setting key: " + key);
-                return false;
-            }
-
-            if (!root.definitionIsValid(key, definitions[key]))
+            if (!root.definitionIsValid(namespace + "." + settingName, definitions[settingName], true))
                 return false;
         }
 
         const nextSchema = Object.assign({}, root.schema);
-        for (let index = 0; index < keys.length; ++index)
-            nextSchema[keys[index]] = definitions[keys[index]];
-
+        nextSchema[namespace] = definitions;
         root.schema = nextSchema;
         return true;
     }
 
-    function validate(key, candidate) {
-        if (!root.hasOwn(root.schema, key)) {
-            console.warn("SettingsService: unknown setting: " + key);
+    function settingDefinition(namespace, settingName) {
+        if (!root.hasOwn(root.schema, namespace) || !root.hasOwn(root.schema[namespace], settingName))
             return undefined;
-        }
 
-        const definition = root.schema[key];
-        if (!root.candidateHasCorrectType(definition, candidate))
-            return definition.defaultValue;
-
-        if (definition.type === "int") {
-            let rounded = Math.round(candidate);
-            if (root.hasOwn(definition, "minimum"))
-                rounded = Math.max(definition.minimum, rounded);
-            if (root.hasOwn(definition, "maximum"))
-                rounded = Math.min(definition.maximum, rounded);
-            return rounded;
-        }
-
-        if (definition.type === "real") {
-            let bounded = candidate;
-            if (root.hasOwn(definition, "minimum"))
-                bounded = Math.max(definition.minimum, bounded);
-            if (root.hasOwn(definition, "maximum"))
-                bounded = Math.min(definition.maximum, bounded);
-            return bounded;
-        }
-
-        return candidate;
+        return root.schema[namespace][settingName];
     }
 
-    function reconcileValues(storedValues) {
-        const reconciled = {};
+    function reconciledValues(storedValues) {
         const source = root.isPlainObject(storedValues) ? storedValues : {};
-        const keys = root.sortedSchemaKeys();
+        const result = {};
+        const namespaces = Object.keys(root.schema).sort(root.compareKeys);
 
-        for (let index = 0; index < keys.length; ++index) {
-            const key = keys[index];
-            const definition = root.schema[key];
-            const candidate = root.hasOwn(source, key) ? source[key] : definition.defaultValue;
+        for (let namespaceIndex = 0; namespaceIndex < namespaces.length; ++namespaceIndex) {
+            const namespace = namespaces[namespaceIndex];
+            const definitions = root.schema[namespace];
+            const storedNamespace = root.isPlainObject(source[namespace]) ? source[namespace] : {};
+            const namespaceValues = {};
+            const settingNames = Object.keys(definitions).sort(root.compareKeys);
 
-            reconciled[key] = root.validate(key, candidate);
+            for (let settingIndex = 0; settingIndex < settingNames.length; ++settingIndex) {
+                const settingName = settingNames[settingIndex];
+                const definition = definitions[settingName];
+                const candidate = root.hasOwn(storedNamespace, settingName) ? storedNamespace[settingName] : definition.defaultValue;
+                const validated = root.validatedValue(definition, candidate, false);
+                namespaceValues[settingName] = validated.valid ? validated.value : root.copiedValue(definition.defaultValue);
+            }
+
+            result[namespace] = namespaceValues;
         }
 
-        return reconciled;
+        return result;
     }
 
-    function canonicalValuesObject(sourceValues) {
-        return root.reconcileValues(sourceValues);
+    function storageObject(sourceValues) {
+        const canonical = root.reconciledValues(sourceValues);
+        const stored = { "$schemaVersion": root.schemaVersion };
+        const namespaces = Object.keys(canonical).sort(root.compareKeys);
+
+        for (let index = 0; index < namespaces.length; ++index)
+            stored[namespaces[index]] = canonical[namespaces[index]];
+
+        return stored;
     }
 
     function serializeValues(sourceValues) {
-        return JSON.stringify(root.canonicalValuesObject(sourceValues), null, 2) + "\n";
-    }
-
-    function valuesNeedCanonicalization(sourceValues, canonicalValues) {
-        return JSON.stringify(sourceValues) !== JSON.stringify(canonicalValues);
+        return JSON.stringify(root.storageObject(sourceValues), null, 2) + "\n";
     }
 
     function load() {
@@ -235,29 +372,27 @@ QtObject {
     function finishLoad(originalText) {
         const trimmedText = originalText.trim();
         let storedValues = {};
-        let parsedSuccessfully = true;
 
         if (trimmedText.length > 0) {
             try {
                 const parsed = JSON.parse(trimmedText);
                 if (!root.isPlainObject(parsed))
-                    throw new Error("settings root must be a JSON object");
+                    throw new Error("settings root must be an object");
+
+                if (parsed["$schemaVersion"] !== root.schemaVersion)
+                    throw new Error("incompatible settings schema version");
 
                 storedValues = parsed;
             } catch (error) {
-                parsedSuccessfully = false;
-                root.lastError = "Failed to parse settings file: " + error;
+                root.lastError = "Reset incompatible settings file: " + error;
                 console.warn("SettingsService: " + root.lastError);
             }
         }
 
-        root.values = root.reconcileValues(storedValues);
+        root.values = root.reconciledValues(storedValues);
         root.revision++;
         root.ready = true;
         root.loadInProgress = false;
-
-        if (!parsedSuccessfully)
-            return;
 
         if (originalText !== root.serializeValues(root.values)) {
             root.dirty = true;
@@ -275,55 +410,68 @@ QtObject {
 
         root.lastError = "Failed to read settings file: " + FileViewError.toString(error);
         console.warn("SettingsService: " + root.lastError);
-        root.values = root.reconcileValues({});
+        root.values = root.reconciledValues({});
         root.revision++;
         root.ready = true;
     }
 
-    function value(key) {
+    function value(namespace, settingName) {
         const dependency = root.revision;
+        const definition = root.settingDefinition(namespace, settingName);
 
-        if (root.hasOwn(root.values, key))
-            return root.values[key];
+        if (root.hasOwn(root.values, namespace) && root.hasOwn(root.values[namespace], settingName))
+            return root.copiedValue(root.values[namespace][settingName]);
+        if (definition !== undefined)
+            return root.copiedValue(definition.defaultValue);
+        if (!root.ready)
+            return undefined;
 
-        if (root.hasOwn(root.schema, key))
-            return root.schema[key].defaultValue;
-
-        console.warn("SettingsService: unknown setting: " + key);
+        console.warn("SettingsService: unknown setting: " + namespace + "." + settingName);
         return undefined;
     }
 
-    function setValue(key, newValue) {
+    function setValue(namespace, settingName, newValue) {
         if (!root.ready) {
             console.warn("SettingsService: setValue() called before load() completed");
             return false;
         }
 
-        if (!root.hasOwn(root.schema, key)) {
-            console.warn("SettingsService: unknown setting: " + key);
+        const definition = root.settingDefinition(namespace, settingName);
+        if (definition === undefined) {
+            console.warn("SettingsService: unknown setting: " + namespace + "." + settingName);
             return false;
         }
 
-        const validated = root.validate(key, newValue);
-        if (root.hasOwn(root.values, key) && root.values[key] === validated)
+        const validated = root.validatedValue(definition, newValue, true);
+        if (!validated.valid) {
+            console.warn("SettingsService: rejected invalid value for " + namespace + "." + settingName);
+            return false;
+        }
+
+        const value = validated.value;
+        const currentNamespace = root.hasOwn(root.values, namespace) ? root.values[namespace] : {};
+        if (root.hasOwn(currentNamespace, settingName) && JSON.stringify(currentNamespace[settingName]) === JSON.stringify(value))
             return true;
 
-        const changed = Object.assign({}, root.values);
-        changed[key] = validated;
-        root.values = root.canonicalValuesObject(changed);
+        const changedNamespace = Object.assign({}, currentNamespace);
+        changedNamespace[settingName] = value;
+        const changedValues = Object.assign({}, root.values);
+        changedValues[namespace] = changedNamespace;
+        root.values = changedValues;
         root.revision++;
         root.dirty = true;
         saveTimer.restart();
         return true;
     }
 
-    function reset(key) {
-        if (!root.hasOwn(root.schema, key)) {
-            console.warn("SettingsService: unknown setting: " + key);
+    function reset(namespace, settingName) {
+        const definition = root.settingDefinition(namespace, settingName);
+        if (definition === undefined) {
+            console.warn("SettingsService: unknown setting: " + namespace + "." + settingName);
             return false;
         }
 
-        return root.setValue(key, root.schema[key].defaultValue);
+        return root.setValue(namespace, settingName, definition.defaultValue);
     }
 
     function resetAll() {
@@ -332,7 +480,7 @@ QtObject {
             return false;
         }
 
-        const resetValues = root.reconcileValues({});
+        const resetValues = root.reconciledValues({});
         if (root.serializeValues(resetValues) === root.serializeValues(root.values))
             return true;
 
@@ -356,8 +504,8 @@ QtObject {
         if (!root.dirty || root.saveInProgress)
             return;
 
-        const canonical = root.canonicalValuesObject(root.values);
-        if (root.valuesNeedCanonicalization(root.values, canonical)) {
+        const canonical = root.reconciledValues(root.values);
+        if (JSON.stringify(root.values) !== JSON.stringify(canonical)) {
             root.values = canonical;
             root.revision++;
         }
@@ -380,14 +528,12 @@ QtObject {
     }
 
     property Timer saveTimer: Timer {
-
         interval: 250
         repeat: false
         onTriggered: root.saveNow()
     }
 
     property FileView settingsView: FileView {
-
         path: ""
         atomicWrites: true
         watchChanges: false
@@ -414,7 +560,6 @@ QtObject {
     }
 
     property Process directoryProcess: Process {
-
         onExited: (exitCode, exitStatus) => {
             root.directoryCreationInProgress = false;
 
