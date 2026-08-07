@@ -27,12 +27,7 @@ PanelWindow {
 
     screen: SurfaceController.activeScreen
 
-    anchors {
-        top: true
-    }
-    margins {
-        top: 6
-    }
+
 
     implicitWidth: 370
     implicitHeight: mainLayout.implicitHeight + 28
