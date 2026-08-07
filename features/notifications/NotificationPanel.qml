@@ -156,7 +156,7 @@ PanelWindow {
 
                                 width: notificationList.width
                                 implicitHeight: notificationDelegate.loadedNotification ? notificationDelegate.loadedNotification.implicitHeight : 0
-                                swipeEnabled: !notificationDelegate.grouped || !NotificationController.isGroupExpanded(notificationDelegate.notificationGroupData)
+                                swipeEnabled: true
                                 showSeparator: notificationDelegate.index < NotificationController.notificationGroups.length - 1
                                 onDismissed: {
                                     if (notificationDelegate.grouped)

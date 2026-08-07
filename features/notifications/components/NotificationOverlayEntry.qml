@@ -26,7 +26,7 @@ Item {
 
     SwipeToDismiss {
         anchors.fill: parent
-        swipeEnabled: !root.grouped || !root.expanded
+        swipeEnabled: true
         onDismissed: root.dismissRequested(root.groupKey)
 
         M3Panel {
