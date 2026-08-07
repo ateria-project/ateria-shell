@@ -46,6 +46,22 @@ Item {
             bucket.push(windowData);
         }
 
+        for (const key in grouped) {
+            grouped[key].sort((left, right) => {
+                const leftPosition = left.layoutPosition;
+                const rightPosition = right.layoutPosition;
+                if (leftPosition === null && rightPosition === null)
+                    return Number(left.id) - Number(right.id);
+                if (leftPosition === null)
+                    return 1;
+                if (rightPosition === null)
+                    return -1;
+                if (Number(leftPosition[0]) !== Number(rightPosition[0]))
+                    return Number(leftPosition[0]) - Number(rightPosition[0]);
+                return Number(leftPosition[1]) - Number(rightPosition[1]);
+            });
+        }
+
         return grouped;
     }
 
