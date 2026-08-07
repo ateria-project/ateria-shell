@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import qs.components
 import qs.features.notifications
+import qs.platform.notifications
 import qs.theme
 
 Item {
@@ -56,7 +57,7 @@ Item {
                 isMemberExpanded: root.isMemberExpanded
                 toggleMemberExpanded: root.toggleMemberExpanded
                 memberSwipeEnabled: root.expanded
-                dismissMember: notification => NotificationOverlayController.hideNotification(notification)
+                dismissMember: notification => NotificationService.dismiss(notification)
                 onExpansionRequested: root.expansionRequested()
             }
         }

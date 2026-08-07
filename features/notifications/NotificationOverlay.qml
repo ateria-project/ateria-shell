@@ -7,6 +7,7 @@ import Quickshell.Wayland
 import qs.components
 import qs.features.notifications.components
 import qs.platform.compositor
+import qs.platform.notifications
 import qs.shell
 import qs.theme
 
@@ -198,7 +199,11 @@ PanelWindow {
                     onExpansionRequested: root.toggleGroupExpanded(group)
                     onDismissRequested: groupKey => {
                         root.setGroupHovered(groupKey, false);
-                        NotificationOverlayController.hideGroup(groupKey);
+                        if (group.notifications.length > 1) {
+                            NotificationService.dismissMany(group.notifications);
+                        } else {
+                            NotificationService.dismiss(group.notifications[0]);
+                        }
                     }
                     Component.onCompleted: root.setGroupHovered(group.key, hovered)
                 }
