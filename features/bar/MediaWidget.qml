@@ -230,7 +230,7 @@ Rectangle {
                 enabled: MprisService.canGoNext
                 style: M3Button.Text
                 iconName: "skip_next"
-                iconSize: 20
+                iconSize: 18
                 iconFilled: true
                 contentColor: Theme.scheme.onSurface
                 leftPadding: 3
