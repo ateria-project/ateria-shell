@@ -119,6 +119,11 @@ PanelWindow {
             incomingMonth.x = 0;
             incomingMonth.y = 0;
             incomingMonth.opacity = 0.0;
+
+            currentMonthTitle.y = 0;
+            currentMonthTitle.opacity = 1.0;
+            incomingMonthTitle.y = 0;
+            incomingMonthTitle.opacity = 0.0;
         }
 
         var direction = target.getTime() > _shownMonth.getTime() ? 1 : -1;
@@ -131,9 +136,17 @@ PanelWindow {
         incomingMonth.y = direction > 0 ? 30 : -30;
         incomingMonth.opacity = 0.0;
 
+        incomingMonthTitle.y = direction > 0 ? 15 : -15;
+        incomingMonthTitle.opacity = 0.0;
+
         outgoingY.to = direction > 0 ? -30 : 30;
         incomingY.from = incomingMonth.y;
         incomingY.to = 0;
+
+        outgoingTitleY.to = direction > 0 ? -15 : 15;
+        incomingTitleY.from = incomingMonthTitle.y;
+        incomingTitleY.to = 0;
+
         monthTransition.restart();
     }
 
@@ -187,11 +200,28 @@ PanelWindow {
                 Layout.rightMargin: 12
                 spacing: 8
 
-                M3Text {
-                    id: monthTitle
-                    text: Qt.formatDate(root.displayedMonth, "MMMM yyyy")
-                    font.pixelSize: 18
-                    font.weight: Font.Normal
+                Item {
+                    id: monthTitleViewport
+                    Layout.preferredWidth: Math.max(currentMonthTitle.implicitWidth, incomingMonthTitle.implicitWidth)
+                    Layout.preferredHeight: Math.max(currentMonthTitle.implicitHeight, incomingMonthTitle.implicitHeight)
+                    clip: true
+
+                    M3Text {
+                        id: currentMonthTitle
+                        y: 0
+                        text: Qt.formatDate(root._shownMonth, "MMMM yyyy")
+                        font.pixelSize: 18
+                        font.weight: Font.Normal
+                    }
+
+                    M3Text {
+                        id: incomingMonthTitle
+                        y: 0
+                        text: Qt.formatDate(root._targetMonth, "MMMM yyyy")
+                        font.pixelSize: 18
+                        font.weight: Font.Normal
+                        opacity: 0.0
+                    }
                 }
 
                 Item {
@@ -329,6 +359,40 @@ PanelWindow {
             easing.type: Easing.BezierSpline
             easing.bezierCurve: [0.34, 0.80, 0.34, 1.0, 1.0, 1.0]
         }
+        NumberAnimation {
+            id: outgoingTitleY
+            target: currentMonthTitle
+            property: "y"
+            duration: 220
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.27, 1.06, 0.18, 1.0, 1.0, 1.0]
+        }
+        NumberAnimation {
+            target: currentMonthTitle
+            property: "opacity"
+            from: 1.0
+            to: 0.0
+            duration: 160
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.34, 0.80, 0.34, 1.0, 1.0, 1.0]
+        }
+        NumberAnimation {
+            id: incomingTitleY
+            target: incomingMonthTitle
+            property: "y"
+            duration: 220
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.27, 1.06, 0.18, 1.0, 1.0, 1.0]
+        }
+        NumberAnimation {
+            target: incomingMonthTitle
+            property: "opacity"
+            from: 0.0
+            to: 1.0
+            duration: 160
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.34, 0.80, 0.34, 1.0, 1.0, 1.0]
+        }
 
         onFinished: {
             root._shownMonth = root._targetMonth;
@@ -338,6 +402,11 @@ PanelWindow {
             incomingMonth.x = 0;
             incomingMonth.y = 0;
             incomingMonth.opacity = 0.0;
+
+            currentMonthTitle.y = 0;
+            currentMonthTitle.opacity = 1.0;
+            incomingMonthTitle.y = 0;
+            incomingMonthTitle.opacity = 0.0;
         }
     }
 }
