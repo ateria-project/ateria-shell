@@ -66,6 +66,15 @@ PanelWindow {
         return result;
     }
 
+    readonly property bool useGroupedTaskbar: {
+        if (!BarSettings.combineWorkspacesAndWindows)
+            return false;
+
+        const availableSpace = (window.width - clockWidget.width) / 2 - 24;
+        const requiredSpace = launcher.width + leftContainer.spacing + taskbarWidget.implicitWidth;
+        return requiredSpace <= availableSpace;
+    }
+
     function preview(workspace) {
         return Object.assign({}, workspace, {
             "active": false,
@@ -85,6 +94,7 @@ PanelWindow {
     }
 
     Row {
+        id: leftContainer
         spacing: Metrics.spacingXs
 
         anchors {
@@ -94,11 +104,12 @@ PanelWindow {
         }
 
         LauncherButton {
+            id: launcher
             screen: window.screen
         }
 
         WorkspacesWidget {
-            visible: !BarSettings.combineWorkspacesAndWindows
+            visible: !window.useGroupedTaskbar
             workspaces: window.visibleWorkspaces
             onWorkspaceRequested: workspaceIndex => {
                 return NiriService.focusWorkspace(workspaceIndex, window.outputName);
@@ -106,7 +117,7 @@ PanelWindow {
         }
 
         WindowsWidget {
-            visible: !BarSettings.combineWorkspacesAndWindows
+            visible: !window.useGroupedTaskbar
             windows: window.visibleWindows
             activeWindowId: window.activeWindowId
             useAppIcons: BarSettings.useAppIcons
@@ -116,7 +127,8 @@ PanelWindow {
         }
 
         TaskbarWidget {
-            visible: BarSettings.combineWorkspacesAndWindows
+            id: taskbarWidget
+            visible: window.useGroupedTaskbar
             workspaces: window.visibleWorkspaces
             activeWindowId: window.activeWindowId
             useAppIcons: BarSettings.useAppIcons
@@ -130,6 +142,7 @@ PanelWindow {
     }
 
     ClockWidget {
+        id: clockWidget
         anchors.centerIn: parent
         screen: window.screen
     }
