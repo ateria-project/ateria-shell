@@ -198,22 +198,6 @@ PanelWindow {
             }
         }
 
-        Behavior on scale {
-            NumberAnimation {
-                duration: root.open ? Motion.durationMedium : Motion.durationShort
-                easing.type: root.open ? Motion.easingStandardDecelerate : Motion.easingStandardAccelerate
-                easing.bezierCurve: root.open ? Motion.standardDecelerateCurve : Motion.standardAccelerateCurve
-            }
-        }
-
-        Behavior on opacity {
-            NumberAnimation {
-                duration: root.open ? Motion.durationMedium : Motion.durationShort
-                easing.type: root.open ? Motion.easingStandardDecelerate : Motion.easingStandardAccelerate
-                easing.bezierCurve: root.open ? Motion.standardDecelerateCurve : Motion.standardAccelerateCurve
-            }
-        }
-
         HoverHandler {
             id: pointerSelectionHandler
 
