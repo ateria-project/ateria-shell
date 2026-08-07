@@ -34,7 +34,7 @@ PanelWindow {
         top: 6
     }
 
-    implicitWidth: 380
+    implicitWidth: 370
     implicitHeight: mainLayout.implicitHeight + 28
     color: "transparent"
     WlrLayershell.exclusiveZone: 0
@@ -188,46 +188,6 @@ PanelWindow {
                 spacing: 8
 
                 M3Text {
-                    text: "Calendar"
-                    font.pixelSize: 16
-                    font.weight: Font.Medium
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                M3Button {
-                    style: M3Button.Tonal
-                    text: "Today"
-                    implicitHeight: 32
-                    containerColor: root.sameMonth(root.today, root.displayedMonth) ? Theme.scheme.surfaceContainerHighest : Theme.scheme.primaryContainer
-                    contentColor: root.sameMonth(root.today, root.displayedMonth) ? Theme.scheme.onSurface : Theme.scheme.onPrimaryContainer
-                    onClicked: root.goToday()
-                }
-
-                M3Button {
-                    style: M3Button.Text
-                    iconName: "settings"
-                    iconSize: 20
-                    implicitWidth: 36
-                    implicitHeight: 36
-                    containerColor: Theme.scheme.surfaceContainerHighest
-                    contentColor: Theme.scheme.onSurface
-                    Accessible.name: "Calendar settings"
-                    onClicked: root.settingsRequested()
-                }
-            }
-
-            Item {}
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.leftMargin: 16
-                Layout.rightMargin: 12
-                spacing: 8
-
-                M3Text {
                     id: monthTitle
                     text: Qt.formatDate(root.displayedMonth, "MMMM yyyy")
                     font.pixelSize: 18
@@ -236,6 +196,18 @@ PanelWindow {
 
                 Item {
                     Layout.fillWidth: true
+                }
+
+                M3Button {
+                    style: M3Button.Text
+                    iconName: "today"
+                    iconSize: 20
+                    implicitWidth: 36
+                    implicitHeight: 36
+                    enabled: !root.sameMonth(root.today, root.displayedMonth) || root.selectedDate.getDate() !== root.today.getDate() || root.selectedDate.getMonth() !== root.today.getMonth() || root.selectedDate.getFullYear() !== root.today.getFullYear()
+                    contentColor: root.sameMonth(root.today, root.displayedMonth) ? Theme.scheme.onSurfaceVariant : Theme.scheme.onSurface
+                    Accessible.name: "Go to today"
+                    onClicked: root.goToday()
                 }
 
                 M3Button {
