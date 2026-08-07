@@ -76,11 +76,16 @@ Rectangle {
             root.startHoverMarquee(hovered);
     }
 
-    visible: MprisService.available && (!MediaSettings.hideWhenInactive || !root.inactiveHidden)
-    implicitWidth: root.fixedContentWidth + root.fittedTextWidth
+    readonly property bool isActive: MprisService.available && (!MediaSettings.hideWhenInactive || !root.inactiveHidden)
+    readonly property real activeImplicitWidth: root.fixedContentWidth + root.fittedTextWidth
+
+    visible: root.isActive || root.opacity > 0.01 || root.implicitWidth > 0.01
+    implicitWidth: root.isActive ? root.activeImplicitWidth : 0
     implicitHeight: 28
     radius: Metrics.radiusFull
     color: Theme.scheme.surfaceContainer
+    opacity: root.isActive ? 1 : 0
+    clip: true
 
     onMediaKeyChanged: {
         artworkAnimator.restart();
@@ -125,9 +130,11 @@ Rectangle {
     }
 
     RowLayout {
-        anchors.fill: parent
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
         anchors.leftMargin: root.leftContentMargin
-        anchors.rightMargin: root.rightContentMargin
+        width: root.activeImplicitWidth - root.leftContentMargin - root.rightContentMargin
         spacing: Metrics.spacingSm
 
         ClippingRectangle {
@@ -286,6 +293,14 @@ Rectangle {
     }
 
     Behavior on implicitWidth {
+        NumberAnimation {
+            duration: Motion.durationLong
+            easing.type: Motion.easingEmphasized
+            easing.bezierCurve: Motion.emphasizedCurve
+        }
+    }
+
+    Behavior on opacity {
         NumberAnimation {
             duration: Motion.durationLong
             easing.type: Motion.easingEmphasized
