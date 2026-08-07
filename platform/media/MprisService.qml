@@ -7,7 +7,6 @@ Singleton {
     id: root
 
     readonly property var preferredMusicApplications: MediaSettings.preferredMusicApplications
-    readonly property var preferredMusicWebsites: MediaSettings.preferredMusicWebsites
     readonly property var browserApplications: MediaSettings.browserApplications
     readonly property var players: Mpris.players.values
     readonly property var eligiblePlayers: root.players.filter(root.playerIsAllowed)
@@ -90,41 +89,7 @@ Singleton {
         return !isListed;
     }
 
-    function normalizedWebsite(value): string {
-        let website = String(value ?? "").trim().toLowerCase();
-        website = website.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
-        website = website.split(/[/?#]/)[0].replace(/^www\./, "").replace(/:\d+$/, "").replace(/\.$/, "");
-        return website;
-    }
 
-    function normalizedWebsitePattern(value): string {
-        const pattern = String(value ?? "").trim().toLowerCase();
-        if (pattern.startsWith("*."))
-            return "*." + root.normalizedWebsite(pattern.slice(2));
-
-        return root.normalizedWebsite(pattern);
-    }
-
-    function configuredWebsitePatterns(): var {
-        return MediaSettings.websites.map(value => root.normalizedWebsitePattern(value)).filter(value => value.length > 0);
-    }
-
-    function playerWebsite(player): string {
-        if (player === null || player === undefined)
-            return "";
-
-        const metadata = player.metadata ?? {};
-        return root.normalizedWebsite(metadata["xesam:url"] ?? "");
-    }
-
-    function websiteMatchesPattern(website: string, pattern: string): bool {
-        if (pattern.startsWith("*.")) {
-            const suffix = pattern.slice(1);
-            return website.endsWith(suffix) && website.length > suffix.length;
-        }
-
-        return website === pattern;
-    }
 
     function playerIsBrowser(player): bool {
         if (player === null || player === undefined)
@@ -133,25 +98,8 @@ Singleton {
         return root.matchesHint(root.playerKey(player), root.browserApplications);
     }
 
-    function websiteIsAllowed(player): bool {
-        if (!root.playerIsBrowser(player))
-            return true;
-
-        const filterMode = MediaSettings.websiteFilterMode;
-        if (filterMode === MediaSettings.showAll)
-            return true;
-
-        const website = root.playerWebsite(player);
-        const isListed = website.length > 0 && root.configuredWebsitePatterns().some(pattern => root.websiteMatchesPattern(website, pattern));
-
-        if (filterMode === MediaSettings.showOnlyListed)
-            return isListed;
-
-        return !isListed;
-    }
-
     function playerIsAllowed(player): bool {
-        return root.applicationIsAllowed(player) && root.websiteIsAllowed(player);
+        return root.applicationIsAllowed(player);
     }
 
     function matchesHint(value: string, hints): bool {
@@ -165,9 +113,7 @@ Singleton {
 
     function playerKindScore(player): int {
         const key = root.playerKey(player);
-        const metadata = player.metadata ?? {};
-        const trackUrl = String(metadata["xesam:url"] ?? "").toLowerCase();
-        if (root.matchesHint(key, root.preferredMusicApplications) || root.matchesHint(trackUrl, root.preferredMusicWebsites))
+        if (root.matchesHint(key, root.preferredMusicApplications))
             return 40;
         if (root.playerIsBrowser(player))
             return -10;

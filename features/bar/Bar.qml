@@ -157,13 +157,13 @@ PanelWindow {
             verticalCenter: parent.verticalCenter
         }
 
-        MediaWidget {
-            anchors.verticalCenter: parent.verticalCenter
-        }
-
         NotificationIndicator {
             anchors.verticalCenter: parent.verticalCenter
             screen: window.screen
+        }
+
+        MediaWidget {
+            anchors.verticalCenter: parent.verticalCenter
         }
 
         StatusArea {

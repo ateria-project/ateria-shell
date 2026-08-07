@@ -44,15 +44,7 @@ QtObject {
         "pocket casts",
         "music player daemon"
     ]
-    readonly property var defaultPreferredMusicWebsites: [
-        "open.spotify.com",
-        "music.apple.com",
-        "listen.tidal.com",
-        "deezer.com",
-        "music.youtube.com",
-        "soundcloud.com",
-        "bandcamp.com"
-    ]
+
     readonly property var defaultBrowserApplications: [
         "chromium",
         "chrome",
@@ -89,28 +81,7 @@ QtObject {
                 group: "source filters",
                 order: 20
             },
-            "websiteFilterMode": {
-                type: "enum",
-                defaultValue: root.showOnlyListed,
-                options: [
-                    { id: root.showAll, label: qsTr("All websites") },
-                    { id: root.showOnlyListed, label: qsTr("Only listed websites") },
-                    { id: root.showAllExceptListed, label: qsTr("All except listed websites") }
-                ],
-                label: qsTr("Website filter"),
-                description: qsTr("Choose which websites the media widget can use in browser apps. Native media apps are not affected."),
-                group: "source filters",
-                order: 30
-            },
-            "websites": {
-                type: "list",
-                items: { type: "string" },
-                defaultValue: root.defaultPreferredMusicWebsites,
-                label: qsTr("Websites"),
-                description: qsTr("Exact domains such as music.youtube.com or open.spotify.com. “youtube.com” and “music.youtube.com” are treated separately; use “*.youtube.com” to match every subdomain. Only browser apps are checked."),
-                group: "source filters",
-                order: 40
-            },
+
             "preferredMusicApplications": {
                 type: "list",
                 items: { type: "string" },
@@ -120,15 +91,7 @@ QtObject {
                 group: "player priority",
                 order: 50
             },
-            "preferredMusicWebsites": {
-                type: "list",
-                items: { type: "string" },
-                defaultValue: root.defaultPreferredMusicWebsites,
-                label: qsTr("Preferred music websites"),
-                description: qsTr("Prioritize browser media whose track URL matches one of these domains."),
-                group: "player priority",
-                order: 60
-            },
+
             "browserApplications": {
                 type: "list",
                 items: { type: "string" },
@@ -159,10 +122,7 @@ QtObject {
 
     readonly property string applicationFilterMode: SettingsService.value("media", "applicationFilterMode") || root.showAll
     readonly property var applications: SettingsService.value("media", "applications") || []
-    readonly property string websiteFilterMode: SettingsService.value("media", "websiteFilterMode") || root.showAll
-    readonly property var websites: SettingsService.value("media", "websites") || []
     readonly property var preferredMusicApplications: SettingsService.value("media", "preferredMusicApplications") || root.defaultPreferredMusicApplications
-    readonly property var preferredMusicWebsites: SettingsService.value("media", "preferredMusicWebsites") || root.defaultPreferredMusicWebsites
     readonly property var browserApplications: SettingsService.value("media", "browserApplications") || root.defaultBrowserApplications
     readonly property bool hideWhenInactive: SettingsService.value("media", "hideWhenInactive") ?? false
     readonly property int inactiveTimeout: SettingsService.value("media", "inactiveTimeout") ?? 10
@@ -175,20 +135,8 @@ QtObject {
         return SettingsService.setValue("media", "applications", value);
     }
 
-    function setWebsiteFilterMode(value): bool {
-        return SettingsService.setValue("media", "websiteFilterMode", value);
-    }
-
-    function setWebsites(value): bool {
-        return SettingsService.setValue("media", "websites", value);
-    }
-
     function setPreferredMusicApplications(value): bool {
         return SettingsService.setValue("media", "preferredMusicApplications", value);
-    }
-
-    function setPreferredMusicWebsites(value): bool {
-        return SettingsService.setValue("media", "preferredMusicWebsites", value);
     }
 
     function setBrowserApplications(value): bool {
