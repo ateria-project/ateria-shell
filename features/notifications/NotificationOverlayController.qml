@@ -159,7 +159,7 @@ Singleton {
 
         root.removeWhere(notification => {
             return !activeKeys[root.notificationKey(notification)];
-        }, true);
+        }, false);
     }
 
     function removeWhere(predicate, resetExpansionState: bool) {
