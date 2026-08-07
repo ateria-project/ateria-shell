@@ -222,7 +222,6 @@ Rectangle {
                 Accessible.name: MprisService.isPlaying ? qsTr("Pause") : qsTr("Play")
                 onClicked: MprisService.togglePlayback()
             }
-
             M3Button {
                 Layout.preferredWidth: root.nextButtonWidth
                 Layout.preferredHeight: 24

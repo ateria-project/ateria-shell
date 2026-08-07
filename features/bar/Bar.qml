@@ -132,6 +132,7 @@ PanelWindow {
             workspaces: window.visibleWorkspaces
             activeWindowId: window.activeWindowId
             useAppIcons: BarSettings.useAppIcons
+            showWorkspaceNumbers: BarSettings.showWorkspaceNumbers
             onWorkspaceRequested: workspaceIndex => {
                 return NiriService.focusWorkspace(workspaceIndex, window.outputName);
             }

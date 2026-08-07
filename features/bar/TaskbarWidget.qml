@@ -12,6 +12,7 @@ Item {
     property var workspaces: null
     property var activeWindowId: null
     property bool useAppIcons: true
+    property bool showWorkspaceNumbers: true
 
     readonly property int workspaceWidth: 30
     readonly property int windowWidth: 34
@@ -76,6 +77,7 @@ Item {
         for (let i = 0; i < workspaceList.length; ++i) {
             const workspaceId = Number(workspaceList[i].id);
             const windows = root.windowsForWorkspace(workspaceId);
+            const pillVisible = root.showWorkspaceNumbers || windows.length === 0;
 
             for (let j = 0; j < windows.length; ++j) {
                 const windowData = windows[j];
@@ -83,11 +85,11 @@ Item {
 
                 layoutById[key] = {
                     windowData: windowData,
-                    x: currentX + root.workspaceWidth + Metrics.spacingXs + j * root.windowWidth + (root.windowWidth - root.activeIndicatorWidth) / 2
+                    x: currentX + (pillVisible ? root.workspaceWidth + Metrics.spacingXs : 0) + j * root.windowWidth + (root.windowWidth - root.activeIndicatorWidth) / 2
                 };
             }
 
-            currentX += root.workspaceWidth + (windows.length > 0 ? Metrics.spacingXs + windows.length * root.windowWidth : 0) + Metrics.spacingSm;
+            currentX += (pillVisible ? root.workspaceWidth : 0) + (windows.length > 0 ? (pillVisible ? Metrics.spacingXs : 0) + windows.length * root.windowWidth : 0) + Metrics.spacingSm;
         }
 
         return layoutById;
@@ -176,8 +178,10 @@ Item {
 
                 readonly property int workspaceId: Number(modelData.id)
                 readonly property int windowCount: root.windowsForWorkspace(workspaceId).length
+                readonly property bool pillVisible: root.showWorkspaceNumbers || windowCount === 0
 
-                width: root.workspaceWidth + (windowCount > 0 ? Metrics.spacingXs + windowCount * root.windowWidth : 0)
+                visible: true
+                width: (pillVisible ? root.workspaceWidth : 0) + (windowCount > 0 ? (pillVisible ? Metrics.spacingXs : 0) + windowCount * root.windowWidth : 0)
                 height: root.barHeight
                 radius: Metrics.radiusFull
                 color: Theme.scheme.surfaceContainer
@@ -249,13 +253,17 @@ Item {
                 readonly property int workspaceIndex: Number(modelData.index)
                 readonly property int workspaceId: Number(modelData.id)
                 readonly property var workspaceWindows: root.windowsForWorkspace(workspaceId)
+                readonly property int windowCount: workspaceRow.workspaceWindows.length
+                readonly property bool pillVisible: root.showWorkspaceNumbers || workspaceRow.windowCount === 0
 
+                visible: true
                 spacing: Metrics.spacingXs
 
                 // Workspace button
                 AbstractButton {
                     id: workspaceControl
 
+                    visible: workspaceRow.pillVisible
                     Accessible.name: qsTr("Workspace %1").arg(workspaceRow.workspaceIndex)
                     focusPolicy: Qt.StrongFocus
                     hoverEnabled: true

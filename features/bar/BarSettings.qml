@@ -13,6 +13,14 @@ QtObject {
                 group: "bar",
                 order: 10
             },
+            "showWorkspaceNumbers": {
+                type: "bool",
+                defaultValue: true,
+                label: qsTr("Show Workspace Numbers"),
+                description: qsTr("Shows the workspace number pills inside the grouped taskbar."),
+                group: "bar",
+                order: 15
+            },
             "useAppIcons": {
                 type: "bool",
                 defaultValue: true,
@@ -24,6 +32,7 @@ QtObject {
         })
 
     readonly property bool combineWorkspacesAndWindows: SettingsService.value("bar", "combineWorkspacesAndWindows")
+    readonly property bool showWorkspaceNumbers: SettingsService.value("bar", "showWorkspaceNumbers")
     readonly property bool useAppIcons: SettingsService.value("bar", "useAppIcons")
 
     function setCombineWorkspacesAndWindows(value) {
@@ -32,6 +41,14 @@ QtObject {
 
     function resetCombineWorkspacesAndWindows() {
         return SettingsService.reset("bar", "combineWorkspacesAndWindows");
+    }
+
+    function setShowWorkspaceNumbers(value) {
+        return SettingsService.setValue("bar", "showWorkspaceNumbers", value);
+    }
+
+    function resetShowWorkspaceNumbers() {
+        return SettingsService.reset("bar", "showWorkspaceNumbers");
     }
 
     function setUseAppIcons(value) {
