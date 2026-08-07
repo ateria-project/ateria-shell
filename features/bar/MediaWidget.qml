@@ -83,6 +83,7 @@ Rectangle {
     color: Theme.scheme.surfaceContainer
 
     onMediaKeyChanged: {
+        artworkAnimator.restart();
         root.restartMarquee();
         root.updateInactivityState();
     }
@@ -139,23 +140,39 @@ Rectangle {
             border.color: Theme.scheme.outlineVariant
             contentUnderBorder: true
 
-            M3Icon {
-                anchors.centerIn: parent
-                name: "music_note"
-                size: 16
-                filled: true
-                color: Theme.scheme.onSurfaceVariant
-            }
-
-            Image {
+            Item {
+                id: artworkContainer
                 anchors.fill: parent
-                visible: MprisService.artworkUrl.length > 0
-                source: MprisService.artworkUrl
-                sourceSize.width: 44
-                sourceSize.height: 44
-                asynchronous: true
-                cache: true
-                fillMode: Image.PreserveAspectCrop
+
+                RotationAnimator {
+                    id: artworkAnimator
+                    target: artworkContainer
+                    from: 0
+                    to: 360
+                    duration: 15000
+                    loops: Animation.Infinite
+                    running: true
+                    paused: !root.playing || !root.visible
+                }
+
+                M3Icon {
+                    anchors.centerIn: parent
+                    name: "music_note"
+                    size: 16
+                    filled: true
+                    color: Theme.scheme.onSurfaceVariant
+                }
+
+                Image {
+                    anchors.fill: parent
+                    visible: MprisService.artworkUrl.length > 0
+                    source: MprisService.artworkUrl
+                    sourceSize.width: 44
+                    sourceSize.height: 44
+                    asynchronous: true
+                    cache: true
+                    fillMode: Image.PreserveAspectCrop
+                }
             }
         }
 
