@@ -124,6 +124,14 @@ PanelWindow {
             currentMonthTitle.opacity = 1.0;
             incomingMonthTitle.y = 0;
             incomingMonthTitle.opacity = 0.0;
+
+            currentYearTitle.y = 0;
+            currentYearTitle.opacity = 1.0;
+            incomingYearTitle.y = 0;
+            incomingYearTitle.opacity = 0.0;
+
+            monthTitleViewport.targetWidth = currentMonthTitle.implicitWidth;
+            yearTitleViewport.targetWidth = currentYearTitle.implicitWidth;
         }
 
         var direction = target.getTime() > _shownMonth.getTime() ? 1 : -1;
@@ -131,6 +139,9 @@ PanelWindow {
         _changingDisplayedMonth = true;
         displayedMonth = target;
         _changingDisplayedMonth = false;
+
+        monthTitleViewport.targetWidth = incomingMonthTitle.implicitWidth;
+        yearTitleViewport.targetWidth = incomingYearTitle.implicitWidth;
 
         incomingMonth.monthDate = target;
         incomingMonth.y = direction > 0 ? 30 : -30;
@@ -146,6 +157,29 @@ PanelWindow {
         outgoingTitleY.to = direction > 0 ? -15 : 15;
         incomingTitleY.from = incomingMonthTitle.y;
         incomingTitleY.to = 0;
+
+        var yearChanged = target.getFullYear() !== _shownMonth.getFullYear();
+        if (yearChanged) {
+            incomingYearTitle.y = direction > 0 ? 15 : -15;
+            incomingYearTitle.opacity = 0.0;
+
+            outgoingYearY.to = direction > 0 ? -15 : 15;
+            outgoingYearOpacity.to = 0.0;
+            
+            incomingYearY.from = incomingYearTitle.y;
+            incomingYearY.to = 0;
+            incomingYearOpacity.to = 1.0;
+        } else {
+            incomingYearTitle.y = 0;
+            incomingYearTitle.opacity = 0.0;
+
+            outgoingYearY.to = 0;
+            outgoingYearOpacity.to = 1.0;
+
+            incomingYearY.from = 0;
+            incomingYearY.to = 0;
+            incomingYearOpacity.to = 0.0;
+        }
 
         monthTransition.restart();
     }
@@ -200,27 +234,74 @@ PanelWindow {
                 Layout.rightMargin: 12
                 spacing: 8
 
-                Item {
-                    id: monthTitleViewport
-                    Layout.preferredWidth: Math.max(currentMonthTitle.implicitWidth, incomingMonthTitle.implicitWidth)
-                    Layout.preferredHeight: Math.max(currentMonthTitle.implicitHeight, incomingMonthTitle.implicitHeight)
-                    clip: true
+                Row {
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing: 6
 
-                    M3Text {
-                        id: currentMonthTitle
-                        y: 0
-                        text: Qt.formatDate(root._shownMonth, "MMMM yyyy")
-                        font.pixelSize: 18
-                        font.weight: Font.Normal
+                    Item {
+                        id: monthTitleViewport
+                        property real targetWidth: currentMonthTitle.implicitWidth
+                        width: targetWidth
+                        height: Math.max(currentMonthTitle.implicitHeight, incomingMonthTitle.implicitHeight)
+                        clip: true
+
+                        Behavior on width {
+                            NumberAnimation {
+                                duration: 220
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: [0.27, 1.06, 0.18, 1.0, 1.0, 1.0]
+                            }
+                        }
+
+                        M3Text {
+                            id: currentMonthTitle
+                            y: 0
+                            text: Qt.formatDate(root._shownMonth, "MMMM")
+                            font.pixelSize: 18
+                            font.weight: Font.Normal
+                        }
+
+                        M3Text {
+                            id: incomingMonthTitle
+                            y: 0
+                            text: Qt.formatDate(root._targetMonth, "MMMM")
+                            font.pixelSize: 18
+                            font.weight: Font.Normal
+                            opacity: 0.0
+                        }
                     }
 
-                    M3Text {
-                        id: incomingMonthTitle
-                        y: 0
-                        text: Qt.formatDate(root._targetMonth, "MMMM yyyy")
-                        font.pixelSize: 18
-                        font.weight: Font.Normal
-                        opacity: 0.0
+                    Item {
+                        id: yearTitleViewport
+                        property real targetWidth: currentYearTitle.implicitWidth
+                        width: targetWidth
+                        height: Math.max(currentYearTitle.implicitHeight, incomingYearTitle.implicitHeight)
+                        clip: true
+
+                        Behavior on width {
+                            NumberAnimation {
+                                duration: 220
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: [0.27, 1.06, 0.18, 1.0, 1.0, 1.0]
+                            }
+                        }
+
+                        M3Text {
+                            id: currentYearTitle
+                            y: 0
+                            text: Qt.formatDate(root._shownMonth, "yyyy")
+                            font.pixelSize: 18
+                            font.weight: Font.Normal
+                        }
+
+                        M3Text {
+                            id: incomingYearTitle
+                            y: 0
+                            text: Qt.formatDate(root._targetMonth, "yyyy")
+                            font.pixelSize: 18
+                            font.weight: Font.Normal
+                            opacity: 0.0
+                        }
                     }
                 }
 
@@ -393,6 +474,40 @@ PanelWindow {
             easing.type: Easing.BezierSpline
             easing.bezierCurve: [0.34, 0.80, 0.34, 1.0, 1.0, 1.0]
         }
+        NumberAnimation {
+            id: outgoingYearY
+            target: currentYearTitle
+            property: "y"
+            duration: 220
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.27, 1.06, 0.18, 1.0, 1.0, 1.0]
+        }
+        NumberAnimation {
+            id: outgoingYearOpacity
+            target: currentYearTitle
+            property: "opacity"
+            from: 1.0
+            duration: 160
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.34, 0.80, 0.34, 1.0, 1.0, 1.0]
+        }
+        NumberAnimation {
+            id: incomingYearY
+            target: incomingYearTitle
+            property: "y"
+            duration: 220
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.27, 1.06, 0.18, 1.0, 1.0, 1.0]
+        }
+        NumberAnimation {
+            id: incomingYearOpacity
+            target: incomingYearTitle
+            property: "opacity"
+            from: 0.0
+            duration: 160
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: [0.34, 0.80, 0.34, 1.0, 1.0, 1.0]
+        }
 
         onFinished: {
             root._shownMonth = root._targetMonth;
@@ -407,6 +522,14 @@ PanelWindow {
             currentMonthTitle.opacity = 1.0;
             incomingMonthTitle.y = 0;
             incomingMonthTitle.opacity = 0.0;
+
+            currentYearTitle.y = 0;
+            currentYearTitle.opacity = 1.0;
+            incomingYearTitle.y = 0;
+            incomingYearTitle.opacity = 0.0;
+
+            monthTitleViewport.targetWidth = currentMonthTitle.implicitWidth;
+            yearTitleViewport.targetWidth = currentYearTitle.implicitWidth;
         }
     }
 }
