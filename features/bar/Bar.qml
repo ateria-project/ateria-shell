@@ -109,7 +109,7 @@ PanelWindow {
             visible: !BarSettings.combineWorkspacesAndWindows
             windows: window.visibleWindows
             activeWindowId: window.activeWindowId
-            useAppIcons: true
+            useAppIcons: BarSettings.useAppIcons
             onWindowRequested: windowId => {
                 return NiriService.focusWindow(windowId);
             }
@@ -119,7 +119,7 @@ PanelWindow {
             visible: BarSettings.combineWorkspacesAndWindows
             workspaces: window.visibleWorkspaces
             activeWindowId: window.activeWindowId
-            useAppIcons: true
+            useAppIcons: BarSettings.useAppIcons
             onWorkspaceRequested: workspaceIndex => {
                 return NiriService.focusWorkspace(workspaceIndex, window.outputName);
             }
