@@ -98,6 +98,7 @@ PanelWindow {
         }
 
         WorkspacesWidget {
+            visible: !BarSettings.combineWorkspacesAndWindows
             workspaces: window.visibleWorkspaces
             onWorkspaceRequested: workspaceIndex => {
                 return NiriService.focusWorkspace(workspaceIndex, window.outputName);
@@ -105,9 +106,23 @@ PanelWindow {
         }
 
         WindowsWidget {
+            visible: !BarSettings.combineWorkspacesAndWindows
             windows: window.visibleWindows
             activeWindowId: window.activeWindowId
             useAppIcons: true
+            onWindowRequested: windowId => {
+                return NiriService.focusWindow(windowId);
+            }
+        }
+
+        TaskbarWidget {
+            visible: BarSettings.combineWorkspacesAndWindows
+            workspaces: window.visibleWorkspaces
+            activeWindowId: window.activeWindowId
+            useAppIcons: true
+            onWorkspaceRequested: workspaceIndex => {
+                return NiriService.focusWorkspace(workspaceIndex, window.outputName);
+            }
             onWindowRequested: windowId => {
                 return NiriService.focusWindow(windowId);
             }
