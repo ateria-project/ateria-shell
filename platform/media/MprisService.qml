@@ -8,14 +8,17 @@ Singleton {
 
     readonly property var preferredMusicApplications: MediaSettings.preferredMusicApplications
     readonly property var browserApplications: MediaSettings.browserApplications
+    readonly property var configuredApplications: MediaSettings.applications.map(value => root.normalizedApplicationName(value)).filter(value => value.length > 0)
     readonly property var players: Mpris.players.values
-    readonly property var eligiblePlayers: root.players.filter(root.playerIsAllowed)
     readonly property var activePlayer: {
         let selectedPlayer = null;
         let selectedScore = -1;
 
-        for (let index = 0; index < root.eligiblePlayers.length; ++index) {
-            const player = root.eligiblePlayers[index];
+        for (let index = 0; index < root.players.length; ++index) {
+            const player = root.players[index];
+            if (!root.playerIsAllowed(player))
+                continue;
+
             const score = root.playerScore(player);
             if (score > selectedScore) {
                 selectedPlayer = player;
@@ -59,10 +62,6 @@ Singleton {
         return String(value ?? "").trim().toLowerCase().replace(/\.desktop$/, "");
     }
 
-    function configuredApplicationNames(): var {
-        return MediaSettings.applications.map(value => root.normalizedApplicationName(value)).filter(value => value.length > 0);
-    }
-
     function playerApplicationNames(player): var {
         if (player === null || player === undefined)
             return [];
@@ -79,9 +78,8 @@ Singleton {
         if (filterMode === MediaSettings.showAll)
             return true;
 
-        const configuredApplications = root.configuredApplicationNames();
         const applicationNames = root.playerApplicationNames(player);
-        const isListed = configuredApplications.some(name => applicationNames.indexOf(name) !== -1);
+        const isListed = root.configuredApplications.some(name => applicationNames.indexOf(name) !== -1);
 
         if (filterMode === MediaSettings.showOnlyListed)
             return isListed;
