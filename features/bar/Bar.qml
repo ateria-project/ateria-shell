@@ -1,87 +1,34 @@
 import QtQuick
 import Quickshell
 import qs.features.notifications.components
-import qs.platform.compositor
+import qs.platform.workspace
 import qs.theme
+import "workspace"
+import "workspace/WorkspaceLayout.js" as WorkspaceLayout
 
 PanelWindow {
     id: window
 
     readonly property string outputName: window.screen ? window.screen.name : ""
     readonly property int workspacePageSize: 9
-    readonly property var activeWorkspace: {
-        const workspace = (NiriService.workspaces ?? []).find(workspace => {
-            return workspace.output === window.outputName && Boolean(workspace.active);
-        });
-        return workspace ?? null;
-    }
-    readonly property int activeWorkspaceId: window.activeWorkspace ? Number(window.activeWorkspace.id) : 0
-    readonly property var activeWindowId: window.activeWorkspace ? window.activeWorkspace.activeWindowId : null
-    readonly property var visibleWindows: {
-        const workspaceId = window.activeWorkspaceId;
-        if (workspaceId < 1)
-            return [];
-
-        return (NiriService.windows ?? []).filter(appWindow => {
-            return Number(appWindow.workspaceId) === workspaceId;
-        }).sort((left, right) => {
-            const leftPosition = left.layoutPosition;
-            const rightPosition = right.layoutPosition;
-            if (leftPosition === null && rightPosition === null)
-                return Number(left.id) - Number(right.id);
-            if (leftPosition === null)
-                return 1;
-            if (rightPosition === null)
-                return -1;
-            if (Number(leftPosition[0]) !== Number(rightPosition[0]))
-                return Number(leftPosition[0]) - Number(rightPosition[0]);
-            return Number(leftPosition[1]) - Number(rightPosition[1]);
-        });
-    }
-    readonly property var visibleWorkspaces: {
-        const allWorkspaces = NiriService.workspaces ?? [];
-        const outputWorkspaces = allWorkspaces.filter(workspace => {
-            return workspace.output === window.outputName;
-        });
-        const workspaces = outputWorkspaces.length > 0 ? outputWorkspaces : allWorkspaces;
-        const activePosition = workspaces.findIndex(workspace => {
-            return Boolean(workspace.active);
-        });
-        const page = activePosition >= 0 ? Math.floor(activePosition / window.workspacePageSize) : 0;
-        const pageStart = page * window.workspacePageSize;
-        const result = [];
-        // Previous-page preview.
-        if (pageStart > 0)
-            result.push(preview(workspaces[pageStart - 1]));
-
-        // Nine real workspaces on the current page.
-        const currentPage = workspaces.slice(pageStart, pageStart + window.workspacePageSize);
-        for (const workspace of currentPage)
-            result.push(workspace);
-        // Next-page preview.
-        const nextWorkspace = workspaces[pageStart + window.workspacePageSize];
-        if (nextWorkspace)
-            result.push(preview(nextWorkspace));
-
-        return result;
-    }
+    readonly property var workspaceView: WorkspaceService.viewForOutput(
+        window.outputName,
+        window.workspacePageSize
+    )
+    readonly property var workspaceLayout: WorkspaceLayout.build(
+        window.workspaceView,
+        BarSettings.showWorkspaceNumbers,
+        Metrics.spacingXs,
+        Metrics.spacingSm
+    )
 
     readonly property bool useGroupedTaskbar: {
         if (!BarSettings.combineWorkspacesAndWindows)
             return false;
 
         const availableSpace = (window.width - clockWidget.width) / 2 - 24;
-        const requiredSpace = launcher.width + leftContainer.spacing + taskbarWidget.implicitWidth;
+        const requiredSpace = launcher.width + leftContainer.spacing + window.workspaceLayout.totalWidth;
         return requiredSpace <= availableSpace;
-    }
-
-    function preview(workspace) {
-        return Object.assign({}, workspace, {
-            "active": false,
-            "occupied": false,
-            "urgent": false,
-            "pagePreview": true
-        });
     }
 
     implicitHeight: 38
@@ -108,36 +55,43 @@ PanelWindow {
             screen: window.screen
         }
 
-        WorkspacesWidget {
-            visible: !window.useGroupedTaskbar
-            workspaces: window.visibleWorkspaces
-            onWorkspaceRequested: workspaceIndex => {
-                return NiriService.focusWorkspace(workspaceIndex, window.outputName);
-            }
-        }
+        Loader {
+            id: taskArea
 
-        WindowsWidget {
-            visible: !window.useGroupedTaskbar
-            windows: window.visibleWindows
-            activeWindowId: window.activeWindowId
-            useAppIcons: BarSettings.useAppIcons
-            onWindowRequested: windowId => {
-                return NiriService.focusWindow(windowId);
-            }
+            anchors.verticalCenter: parent.verticalCenter
+            asynchronous: false
+            sourceComponent: window.useGroupedTaskbar ? groupedTaskbarComponent : splitTaskbarComponent
         }
+    }
+
+    Component {
+        id: groupedTaskbarComponent
 
         TaskbarWidget {
-            id: taskbarWidget
-            visible: window.useGroupedTaskbar
-            workspaces: window.visibleWorkspaces
-            activeWindowId: window.activeWindowId
+            view: window.workspaceView
+            layoutData: window.workspaceLayout
             useAppIcons: BarSettings.useAppIcons
             showWorkspaceNumbers: BarSettings.showWorkspaceNumbers
-            onWorkspaceRequested: workspaceIndex => {
-                return NiriService.focusWorkspace(workspaceIndex, window.outputName);
+            onWorkspaceRequested: workspaceIndex => WorkspaceService.focusWorkspace(workspaceIndex, window.outputName)
+            onWindowRequested: windowId => WorkspaceService.focusWindow(windowId)
+        }
+    }
+
+    Component {
+        id: splitTaskbarComponent
+
+        Row {
+            spacing: Metrics.spacingXs
+
+            WorkspacesWidget {
+                view: window.workspaceView
+                onWorkspaceRequested: workspaceIndex => WorkspaceService.focusWorkspace(workspaceIndex, window.outputName)
             }
-            onWindowRequested: windowId => {
-                return NiriService.focusWindow(windowId);
+
+            WindowsWidget {
+                view: window.workspaceView
+                useAppIcons: BarSettings.useAppIcons
+                onWindowRequested: windowId => WorkspaceService.focusWindow(windowId)
             }
         }
     }
