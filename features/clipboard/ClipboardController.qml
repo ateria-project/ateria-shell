@@ -8,7 +8,8 @@ QtObject {
     property string query: ""
     property int currentIndex: -1
 
-    readonly property var results: ClipboardSearch.filterEntries(ClipboardService.entries, root.query)
+    readonly property var entryIndex: ClipboardSearch.createEntryIndex(ClipboardService.entries)
+    readonly property var results: ClipboardSearch.filterEntryIndex(root.entryIndex, root.query)
     readonly property var currentEntry: root.currentIndex >= 0 && root.currentIndex < root.results.length
         ? root.results[root.currentIndex] : null
 

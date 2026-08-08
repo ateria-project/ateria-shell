@@ -93,7 +93,7 @@ Singleton {
         }
 
         if (root.refreshPending)
-            Qt.callLater(root.refresh);
+            root.refresh();
     }
 
     function handleOperationFailure(operation, exitCode, errorOutput) {

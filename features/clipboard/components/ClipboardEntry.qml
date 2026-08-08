@@ -13,6 +13,8 @@ AbstractButton {
     property bool selected: false
 
     implicitHeight: 56
+    leftPadding: Metrics.spacingMd
+    rightPadding: Metrics.spacingMd
     focusPolicy: Qt.NoFocus
     hoverEnabled: true
     Accessible.name: root.entry ? root.entry.preview : qsTr("Clipboard entry")
@@ -33,7 +35,6 @@ AbstractButton {
         spacing: Metrics.spacingMd
 
         M3Icon {
-            Layout.leftMargin: Metrics.spacingMd
             name: "content_paste"
             size: 22
             color: root.selected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurfaceVariant
@@ -48,8 +49,6 @@ AbstractButton {
             wrapMode: Text.Wrap
             font.pixelSize: 15
         }
-
-        Item {}
     }
 
     HoverHandler {
