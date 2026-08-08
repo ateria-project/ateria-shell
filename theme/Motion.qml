@@ -12,6 +12,7 @@ Singleton {
     readonly property int durationShort: 100
     readonly property int durationMedium: 200
     readonly property int durationLong: 300
+    readonly property int durationSpatialDefault: 380
 
     readonly property int easingStandard: Easing.BezierSpline
     readonly property list<real> standardCurve: [0.2, 0.0, 0.0, 1.0, 1.0, 1.0]
@@ -26,4 +27,6 @@ Singleton {
     readonly property list<real> emphasizedDecelerateCurve: [0.05, 0.7, 0.1, 1.0, 1.0, 1.0]
     readonly property int easingEmphasizedAccelerate: Easing.BezierSpline
     readonly property list<real> emphasizedAccelerateCurve: [0.3, 0.0, 0.8, 0.15, 1.0, 1.0]
+    readonly property int easingExpressiveSpatial: Easing.BezierSpline
+    readonly property list<real> expressiveDefaultSpatialCurve: [0.38, 1.21, 0.22, 1.0, 1.0, 1.0]
 }

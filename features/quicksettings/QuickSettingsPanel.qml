@@ -13,6 +13,7 @@ TransientPanelWindow {
 
     open: SurfaceController.quickSettingsOpen
     targetScreen: SurfaceController.quickSettingsScreen
+    transitionsEnabled: true
     readonly property Item activePage: navigationStack.currentItem
     readonly property real targetPanelWidth: root.activePage && root.activePage.implicitWidth > 0
         ? root.activePage.implicitWidth
@@ -28,6 +29,7 @@ TransientPanelWindow {
     // Wayland configure and a full page relayout on every frame.
     implicitWidth: root.panelWidth
     implicitHeight: root.maximumPanelHeight
+    onTransitionRequested: (entering, generation) => panelTransition.transition(entering, generation)
 
     // Reset only when the window lifecycle has actually ended. Keeping page
     // state independent from the requested open state prevents an eventual
@@ -42,7 +44,7 @@ TransientPanelWindow {
     }
 
     DismissibleOverlay {
-        excludedItem: panelViewport
+        excludedItem: panelPresentation
         enabled: root.interactive
         onDismissed: SurfaceController.closeQuickSettings()
     }
@@ -92,6 +94,8 @@ TransientPanelWindow {
         clip: navigationStack.busy
 
         PresentationLayer {
+            id: panelPresentation
+
             anchors.fill: parent
 
             StackView {
@@ -108,6 +112,14 @@ TransientPanelWindow {
                 popExit: NoTransition {}
             }
         }
+    }
+
+    SlideTransition {
+        id: panelTransition
+
+        target: panelPresentation
+        hiddenOffsetY: -(panelViewport.height + panelViewport.anchors.topMargin + 5)
+        onTransitionFinished: generation => root.completeTransition(generation)
     }
 
     component NoTransition: Transition {

@@ -45,12 +45,14 @@ TransientPanelWindow {
 
     open: SurfaceController.notificationPanelOpen
     targetScreen: SurfaceController.notificationPanelScreen
+    transitionsEnabled: true
     implicitWidth: root.panelWidth
     // Keep the native layer surface stable. The inner viewport can follow
     // content without issuing a Wayland configure.
     implicitHeight: root.maximumPanelHeight
     color: "transparent"
     WlrLayershell.exclusiveZone: 0
+    onTransitionRequested: (entering, generation) => panelTransition.transition(entering, generation)
 
     anchors {
         top: true
@@ -60,7 +62,7 @@ TransientPanelWindow {
     }
 
     DismissibleOverlay {
-        excludedItem: panelSurface
+        excludedItem: panelSurface.presentationItem
         enabled: root.interactive
         onDismissed: SurfaceController.closeNotificationPanel()
     }
@@ -229,5 +231,13 @@ TransientPanelWindow {
                 }
             }
         }
+    }
+
+    SlideTransition {
+        id: panelTransition
+
+        target: panelSurface.presentationItem
+        hiddenOffsetY: -(panelSurface.height + panelSurface.anchors.topMargin + 5)
+        onTransitionFinished: generation => root.completeTransition(generation)
     }
 }

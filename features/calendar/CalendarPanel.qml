@@ -44,11 +44,13 @@ TransientPanelWindow {
 
     open: SurfaceController.calendarOpen
     targetScreen: SurfaceController.calendarScreen
+    transitionsEnabled: true
     implicitWidth: 370
     implicitHeight: mainLayout.implicitHeight + 28
     color: "transparent"
     WlrLayershell.exclusiveZone: 0
     onFullyOpened: root.today = new Date()
+    onTransitionRequested: (entering, generation) => panelTransition.transition(entering, generation)
 
     // Keep the input surface full-screen while open so clicks outside the
     // panel can dismiss it.
@@ -60,7 +62,7 @@ TransientPanelWindow {
     }
 
     DismissibleOverlay {
-        excludedItem: panelSurface
+        excludedItem: panelSurface.presentationItem
         enabled: root.interactive
         onDismissed: SurfaceController.closeCalendar()
     }
@@ -203,5 +205,13 @@ TransientPanelWindow {
                 }
             }
         }
+    }
+
+    SlideTransition {
+        id: panelTransition
+
+        target: panelSurface.presentationItem
+        hiddenOffsetY: -(panelSurface.height + panelSurface.anchors.topMargin + 5)
+        onTransitionFinished: generation => root.completeTransition(generation)
     }
 }
