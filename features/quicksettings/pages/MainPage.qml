@@ -129,14 +129,14 @@ M3Panel {
                     from: 0
                     to: 1
                     value: {
-                        return BrightnessService.brightnessForScreen(SurfaceController.activeScreen);
+                        return BrightnessService.brightnessForScreen(root.controller?.screen ?? null);
                     }
 
                     live: true
 
                     Layout.fillWidth: true
 
-                    onValueChangeRequested: requestedValue => BrightnessService.setScreenBrightness(SurfaceController.activeScreen, requestedValue)
+                    onValueChangeRequested: requestedValue => BrightnessService.setScreenBrightness(root.controller?.screen ?? null, requestedValue)
                 }
 
                 M3Button {
@@ -172,56 +172,21 @@ M3Panel {
                     id: powerMenu
 
                     x: 0
-                    y: -height - Metrics.spacingXs
+                    y: -implicitHeight - Metrics.spacingXs
                     width: 176
+                    height: implicitHeight
+                    implicitHeight: powerMenuContent.implicitHeight + topPadding + bottomPadding
                     padding: Metrics.spacingXs
                     modal: true
                     dim: false
                     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-                    transformOrigin: Item.BottomLeft
 
                     enter: Transition {
-                        ParallelAnimation {
-                            NumberAnimation {
-                                property: "opacity"
-                                from: 0
-                                to: 1
-                                duration: Motion.durationShort
-                                easing.type: Motion.easingStandardDecelerate
-                                easing.bezierCurve: Motion.standardDecelerateCurve
-                            }
-
-                            NumberAnimation {
-                                property: "scale"
-                                from: 0.96
-                                to: 1
-                                duration: Motion.durationShort
-                                easing.type: Motion.easingStandardDecelerate
-                                easing.bezierCurve: Motion.standardDecelerateCurve
-                            }
-                        }
+                        NumberAnimation { duration: 0 }
                     }
 
                     exit: Transition {
-                        ParallelAnimation {
-                            NumberAnimation {
-                                property: "opacity"
-                                from: 1
-                                to: 0
-                                duration: Motion.durationShort
-                                easing.type: Motion.easingStandardAccelerate
-                                easing.bezierCurve: Motion.standardAccelerateCurve
-                            }
-
-                            NumberAnimation {
-                                property: "scale"
-                                from: 1
-                                to: 0.96
-                                duration: Motion.durationShort
-                                easing.type: Motion.easingStandardAccelerate
-                                easing.bezierCurve: Motion.standardAccelerateCurve
-                            }
-                        }
+                        NumberAnimation { duration: 0 }
                     }
 
                     background: Rectangle {
@@ -230,6 +195,8 @@ M3Panel {
                     }
 
                     contentItem: ColumnLayout {
+                        id: powerMenuContent
+
                         spacing: 0
 
                         PowerMenuItem {
@@ -292,13 +259,6 @@ M3Panel {
                 Layout.preferredHeight: 34
                 Layout.preferredWidth: implicitWidth
 
-                Behavior on Layout.preferredWidth {
-                    NumberAnimation {
-                        duration: Motion.durationMedium
-                        easing.type: Easing.OutCubic
-                    }
-                }
-
                 style: M3Button.Tonal
                 containerColor: Theme.scheme.surfaceContainerHighest
 
@@ -338,9 +298,8 @@ M3Panel {
                 color: Theme.scheme.onSurfaceVariant
             }
 
-            Item {}
-
             M3Button {
+                Layout.leftMargin: 8
                 iconName: "settings"
                 iconSize: 22
 

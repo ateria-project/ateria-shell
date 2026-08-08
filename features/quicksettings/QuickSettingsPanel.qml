@@ -1,46 +1,38 @@
 import QtQuick
-import Quickshell
+import QtQuick.Controls
 import qs.components
 import qs.features.quicksettings.pages
 import qs.shell
 import qs.theme
 
-PanelWindow {
+TransientPanelWindow {
     id: root
 
-    property bool open: SurfaceController.quickSettingsOpen
+    property real panelWidth: 396
+    property real maximumPanelHeight: 450
 
-    screen: SurfaceController.activeScreen
-    visible: open
-    readonly property Item activePage: {
-        if (controller.currentPage === "main")
-            return mainPage;
-        if (controller.currentPage === "audio")
-            return audioPage;
-        if (controller.currentPage === "brightness")
-            return brightnessPage;
-        for (let i = 0; i < panelViewport.children.length; ++i) {
-            const child = panelViewport.children[i];
-            if (child.visible)
-                return child;
-        }
-        return mainPage;
-    }
-    readonly property real targetPanelWidth: root.activePage && root.activePage.implicitWidth > 0 ? root.activePage.implicitWidth : mainPage.implicitWidth
-    readonly property real targetPanelHeight: root.activePage && root.activePage.implicitHeight > 0 ? root.activePage.implicitHeight : mainPage.implicitHeight
+    open: SurfaceController.quickSettingsOpen
+    targetScreen: SurfaceController.quickSettingsScreen
+    readonly property Item activePage: navigationStack.currentItem
+    readonly property real targetPanelWidth: root.activePage && root.activePage.implicitWidth > 0
+        ? root.activePage.implicitWidth
+        : root.panelWidth
+    readonly property real targetPanelHeight: root.activePage && root.activePage.implicitHeight > 0
+        ? Math.min(root.activePage.implicitHeight, root.maximumPanelHeight)
+        : root.maximumPanelHeight
 
     color: "transparent"
     // Keep the input surface full-screen while open so clicks outside the
     // panel can dismiss it.
     // Keep the native layer surface stable. Animating its size causes a
     // Wayland configure and a full page relayout on every frame.
-    implicitWidth: Math.max(mainPage.implicitWidth, audioPage.implicitWidth, brightnessPage.implicitWidth)
-    implicitHeight: Math.max(mainPage.implicitHeight, audioPage.implicitHeight, brightnessPage.implicitHeight)
+    implicitWidth: root.panelWidth
+    implicitHeight: root.maximumPanelHeight
 
-    onOpenChanged: {
-        if (!open)
-            controller.reset();
-    }
+    // Reset only when the window lifecycle has actually ended. Keeping page
+    // state independent from the requested open state prevents an eventual
+    // exit transition from being relaid out underneath itself.
+    onFullyClosed: navigationController.reset()
 
     anchors {
         top: true
@@ -49,48 +41,41 @@ PanelWindow {
         left: true
     }
 
-    MouseArea {
-        anchors {
-            top: parent.top
-            right: parent.right
-            bottom: panelViewport.top
-            left: parent.left
-        }
-        onClicked: SurfaceController.closeQuickSettings()
-    }
-
-    MouseArea {
-        anchors {
-            top: panelViewport.bottom
-            right: parent.right
-            bottom: parent.bottom
-            left: parent.left
-        }
-        onClicked: SurfaceController.closeQuickSettings()
-    }
-
-    MouseArea {
-        anchors {
-            top: panelViewport.top
-            right: panelViewport.left
-            bottom: panelViewport.bottom
-            left: parent.left
-        }
-        onClicked: SurfaceController.closeQuickSettings()
-    }
-
-    MouseArea {
-        anchors {
-            top: panelViewport.top
-            right: parent.right
-            bottom: panelViewport.bottom
-            left: panelViewport.right
-        }
-        onClicked: SurfaceController.closeQuickSettings()
+    DismissibleOverlay {
+        excludedItem: panelViewport
+        enabled: root.interactive
+        onDismissed: SurfaceController.closeQuickSettings()
     }
 
     QuickSettingsController {
-        id: controller
+        id: navigationController
+
+        screen: root.screen
+
+        onPageRequested: page => {
+            const component = root.componentForPage(page);
+            if (component)
+                navigationStack.push(component, {}, StackView.Immediate);
+        }
+        onBackRequested: {
+            if (navigationStack.depth > 1)
+                navigationStack.pop(null, StackView.Immediate);
+        }
+        onResetRequested: {
+            if (navigationStack.depth > 1)
+                navigationStack.pop(null, StackView.Immediate);
+        }
+    }
+
+    function componentForPage(page: string): Component {
+        switch (page) {
+        case "audio":
+            return audioPageComponent;
+        case "brightness":
+            return brightnessPageComponent;
+        default:
+            return null;
+        }
     }
 
     Item {
@@ -104,46 +89,52 @@ PanelWindow {
         }
         width: root.targetPanelWidth
         height: root.targetPanelHeight
-        clip: true
+        clip: navigationStack.busy
 
-        Behavior on width {
-            NumberAnimation {
-                duration: Motion.durationMedium
-                easing.type: Motion.easingEmphasized
-                easing.bezierCurve: Motion.emphasizedCurve
+        PresentationLayer {
+            anchors.fill: parent
+
+            StackView {
+                id: navigationStack
+
+                anchors.fill: parent
+                initialItem: mainPageComponent
+
+                // Navigation and lifecycle are now owned by StackView. Motion
+                // can be added here later without changing page geometry.
+                pushEnter: NoTransition {}
+                pushExit: NoTransition {}
+                popEnter: NoTransition {}
+                popExit: NoTransition {}
             }
         }
+    }
 
-        Behavior on height {
-            NumberAnimation {
-                duration: Motion.durationMedium
-                easing.type: Motion.easingEmphasized
-                easing.bezierCurve: Motion.emphasizedCurve
-            }
-        }
+    component NoTransition: Transition {
+        NumberAnimation { duration: 0 }
+    }
+
+    Component {
+        id: mainPageComponent
 
         MainPage {
-            id: mainPage
-
-            anchors.fill: parent
-            visible: controller.currentPage === "main"
-            controller: controller
+            controller: navigationController
         }
+    }
+
+    Component {
+        id: audioPageComponent
 
         AudioPage {
-            id: audioPage
-
-            anchors.fill: parent
-            visible: controller.currentPage === "audio"
-            controller: controller
+            controller: navigationController
         }
+    }
+
+    Component {
+        id: brightnessPageComponent
 
         BrightnessPage {
-            id: brightnessPage
-
-            anchors.fill: parent
-            visible: controller.currentPage === "brightness"
-            controller: controller
+            controller: navigationController
         }
     }
 }

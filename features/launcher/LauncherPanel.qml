@@ -7,40 +7,26 @@ import Quickshell.Io
 import Quickshell.Wayland
 import qs.components
 import qs.features.launcher.components
-import qs.platform.compositor
+import qs.platform.workspace
 import qs.shell
 import qs.theme
 
-PanelWindow {
+TransientPanelWindow {
     id: root
 
-    property bool open: SurfaceController.launcherOpen
     property real launcherWidth: 600
     property int maximumVisibleResults: 6
     property int resultRowHeight: 56
     property real lastPointerSceneX: NaN
     property real lastPointerSceneY: NaN
 
-    readonly property string focusedOutputName: {
-        const focusedWorkspace = NiriService.workspaces.find(workspace => {
-            return workspace.focused;
-        });
-        return focusedWorkspace ? focusedWorkspace.output : "";
-    }
-    readonly property var preferredScreen: {
-        const screens = Quickshell.screens;
-        const focusedScreen = screens.find(candidate => {
-            return candidate.name === root.focusedOutputName;
-        });
-        return focusedScreen ?? SurfaceController.activeScreen ?? (screens.length > 0 ? screens[0] : null);
-    }
-
-    screen: SurfaceController.activeScreen ?? root.preferredScreen
-    visible: root.open || panelSurface.opacity > 0
+    open: SurfaceController.launcherOpen
+    targetScreen: SurfaceController.launcherScreen
+    fallbackScreen: SurfaceController.preferredScreen(WorkspaceService.focusedOutputName)
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: root.interactive ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     WlrLayershell.namespace: "ateria-shell-launcher"
 
     anchors {
@@ -60,7 +46,7 @@ PanelWindow {
         target: "launcher"
 
         function open(): void {
-            SurfaceController.openLauncher(root.preferredScreen);
+            SurfaceController.openLauncher(root.fallbackScreen);
         }
 
         function close(): void {
@@ -71,7 +57,7 @@ PanelWindow {
             if (SurfaceController.launcherOpen)
                 SurfaceController.closeLauncher();
             else
-                SurfaceController.openLauncher(root.preferredScreen);
+                SurfaceController.openLauncher(root.fallbackScreen);
         }
     }
 
@@ -128,76 +114,25 @@ PanelWindow {
         if (root.open) {
             controller.refreshUsageRanking();
             controller.resetSelection();
-            Qt.callLater(() => searchField.forceActiveFocus());
+            searchField.forceActiveFocus(Qt.PopupFocusReason);
         }
     }
 
-    onVisibleChanged: {
-        if (!root.visible && !root.open)
-            searchField.clear();
+    onFullyClosed: searchField.clear()
+
+    DismissibleOverlay {
+        excludedItem: panelSurface
+        enabled: root.interactive
+        onDismissed: root.closeLauncher()
     }
 
-
-
-    MouseArea {
-        anchors {
-            top: parent.top
-            right: parent.right
-            bottom: panelSurface.top
-            left: parent.left
-        }
-        onClicked: root.closeLauncher()
-    }
-
-    MouseArea {
-        anchors {
-            top: panelSurface.bottom
-            right: parent.right
-            bottom: parent.bottom
-            left: parent.left
-        }
-        onClicked: root.closeLauncher()
-    }
-
-    MouseArea {
-        anchors {
-            top: panelSurface.top
-            right: panelSurface.left
-            bottom: panelSurface.bottom
-            left: parent.left
-        }
-        onClicked: root.closeLauncher()
-    }
-
-    MouseArea {
-        anchors {
-            top: panelSurface.top
-            right: parent.right
-            bottom: panelSurface.bottom
-            left: panelSurface.right
-        }
-        onClicked: root.closeLauncher()
-    }
-
-    M3Panel {
+    M3Surface {
         id: panelSurface
 
         anchors.centerIn: parent
         width: Math.min(root.launcherWidth, Math.max(0, root.width - Metrics.spacingXl * 2))
         height: launcherContent.implicitHeight + Metrics.spacingLg * 2
         radius: Metrics.radiusXl
-        clip: true
-        opacity: root.open ? 1 : 0
-        scale: root.open ? 1 : 0.94
-
-        Behavior on height {
-            NumberAnimation {
-                duration: Motion.durationMedium
-                easing.type: Motion.easingStandard
-                easing.bezierCurve: Motion.standardCurve
-            }
-        }
-
         HoverHandler {
             id: pointerSelectionHandler
 

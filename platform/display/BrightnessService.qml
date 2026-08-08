@@ -213,6 +213,11 @@ Singleton {
 
     // External display detection
     function parseExternalDisplays(data: string) {
+        const detected = [];
+        const previous = root.externalDisplays;
+        const lines = String(data).split(/\r?\n/);
+        let candidate = null;
+
         function commitCandidate() {
             if (candidate === null)
                 return;
@@ -244,10 +249,6 @@ Singleton {
             candidate = null;
         }
 
-        const detected = [];
-        const previous = root.externalDisplays;
-        const lines = String(data).split(/\r?\n/);
-        let candidate = null;
         for (const line of lines) {
             const displayMatch = line.match(/^\s*Display\s+(\d+)\s*$/);
             if (displayMatch !== null) {
@@ -294,9 +295,7 @@ Singleton {
         if (root.externalQueryQueue.length === 0) {
             if (root.externalRefreshPending) {
                 root.externalRefreshPending = false;
-                Qt.callLater(() => {
-                    return root.refreshExternal();
-                });
+                root.refreshExternal();
             }
             return;
         }
