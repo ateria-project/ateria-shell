@@ -97,7 +97,7 @@ AbstractButton {
             anchors.centerIn: parent
             visible: !appIcon.visible
             text: root.initial
-            color: root.urgent ? Theme.scheme.onErrorContainer : root.active ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurface
+            color: root.urgent ? Theme.scheme.onErrorContainer : root.active ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
             opacity: root.active ? 1 : 0.85
             scale: root.active ? 1 : 0.88
             font.pixelSize: 14

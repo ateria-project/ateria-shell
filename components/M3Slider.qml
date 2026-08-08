@@ -9,8 +9,8 @@ Slider {
 
     // Visual configuration
     property real trackHeight: 4
-    property color inactiveTrackColor: Theme.scheme.outlineVariant
-    property color activeTrackColor: Theme.scheme.primaryContainer
+    property color inactiveTrackColor: Theme.scheme.secondaryContainer
+    property color activeTrackColor: Theme.scheme.primary
     property color focusRingColor: root.activeTrackColor
 
     // Optional leading icon rendered inside the active track.
@@ -19,7 +19,7 @@ Slider {
     // always has at least one handle diameter of width.
     property string iconName: ""
     property int iconSize: 22
-    property color iconColor: Theme.scheme.onPrimaryContainer
+    property color iconColor: Theme.scheme.onPrimary
     property bool iconFilled: false
     property real iconWeight: 500
     property real iconGrade: 0

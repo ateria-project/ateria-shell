@@ -13,7 +13,8 @@ AbstractButton {
     property var screen: null
     property bool hasBattery: false
     property bool recording: false
-    readonly property color iconColor: Theme.scheme.onSurface
+    readonly property bool active: SurfaceController.quickSettingsOpen && SurfaceController.quickSettingsScreen === root.screen
+    readonly property color iconColor: root.active ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
 
     onClicked: SurfaceController.toggleQuickSettings(root.screen)
     focusPolicy: Qt.StrongFocus
@@ -28,7 +29,7 @@ AbstractButton {
 
     background: Rectangle {
         radius: Metrics.radiusFull
-        color: Theme.scheme.surfaceContainer
+        color: root.active ? Theme.scheme.secondaryContainer : Theme.scheme.surfaceContainer
 
         Rectangle {
             anchors.fill: parent

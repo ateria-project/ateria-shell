@@ -8,15 +8,15 @@ ScrollBar {
     padding: 0
 
     background: Rectangle {
-        color: Theme.scheme.outlineVariant
+        color: "transparent"
     }
 
     contentItem: Rectangle {
         implicitWidth: 4
         implicitHeight: 4
         radius: width / 2
-        color: Theme.scheme.outline
-        opacity: root.active || root.pressed ? 0.72 : 0.38
+        color: Theme.scheme.onSurfaceVariant
+        opacity: root.pressed ? 0.87 : root.hovered ? 0.72 : root.active ? 0.5 : 0.38
 
         Behavior on opacity {
             NumberAnimation {

@@ -20,8 +20,8 @@ M3Panel {
         property string iconName: ""
         property bool selected: false
 
-        readonly property color contentColor: rowRoot.selected ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurface
-        readonly property color containerColor: rowRoot.selected ? Theme.scheme.primaryContainer : "transparent"
+        readonly property color contentColor: rowRoot.selected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
+        readonly property color containerColor: rowRoot.selected ? Theme.scheme.secondaryContainer : "transparent"
 
         implicitHeight: 46
         leftPadding: 16

@@ -24,12 +24,14 @@ AbstractButton {
 
     background: Rectangle {
         radius: Metrics.radiusFull
-        color: (root.hovered || root.down || root.visualFocus || SurfaceController.calendarOpen) ? Theme.scheme.surfaceContainer : "transparent"
+        color: SurfaceController.calendarOpen
+            ? Theme.scheme.secondaryContainer
+            : ((root.hovered || root.down || root.visualFocus) ? Theme.scheme.surfaceContainer : "transparent")
 
         Rectangle {
             anchors.fill: parent
             radius: parent.radius
-            color: Theme.scheme.onSurface
+            color: SurfaceController.calendarOpen ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
             opacity: (root.down || SurfaceController.calendarOpen) ? 0.12 : root.hovered ? 0.08 : root.visualFocus ? 0.12 : 0
 
             Behavior on opacity {
@@ -55,7 +57,7 @@ AbstractButton {
             id: label
             anchors.centerIn: parent
             text: Qt.formatDateTime(clock.date, "ddd, d MMMM   •   h:mm AP")
-            color: Theme.scheme.onSurface
+            color: SurfaceController.calendarOpen ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
             font.pixelSize: 14
             font.weight: Font.DemiBold
         }

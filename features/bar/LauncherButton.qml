@@ -18,12 +18,12 @@ AbstractButton {
 
     background: Rectangle {
         radius: Metrics.radiusSm
-        color: SurfaceController.launcherOpen ? Theme.scheme.primaryContainer : "transparent"
+        color: SurfaceController.launcherOpen ? Theme.scheme.secondaryContainer : "transparent"
 
         Rectangle {
             anchors.fill: parent
             radius: parent.radius
-            color: SurfaceController.launcherOpen ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurface
+            color: SurfaceController.launcherOpen ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
             opacity: root.down ? Theme.statePressedOpacity : root.hovered ? Theme.stateHoverOpacity : root.visualFocus ? Theme.stateFocusOpacity : 0
         }
     }
@@ -31,7 +31,7 @@ AbstractButton {
     contentItem: M3Icon {
         name: "apps"
         size: 20
-        color: SurfaceController.launcherOpen ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurface
+        color: SurfaceController.launcherOpen ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
         opacity: 0.95
     }
 

@@ -24,12 +24,12 @@ AbstractButton {
 
     background: Rectangle {
         radius: 16
-        color: root.active ? Theme.scheme.primaryContainer : Theme.scheme.surfaceContainerHighest
+        color: root.active ? Theme.scheme.primary : Theme.scheme.surfaceContainerHighest
 
         Rectangle {
             anchors.fill: parent
             radius: parent.radius
-            color: root.active ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurface
+            color: root.active ? Theme.scheme.onPrimary : Theme.scheme.onSurface
             opacity: root.down ? 0.12 : root.hovered ? 0.08 : root.visualFocus ? 0.1 : 0
 
             Behavior on opacity {
@@ -62,7 +62,7 @@ AbstractButton {
 
             name: root.iconName
             size: 24
-            color: root.active ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurface
+            color: root.active ? Theme.scheme.onPrimary : Theme.scheme.onSurface
         }
 
         Column {
@@ -79,7 +79,7 @@ AbstractButton {
             M3Text {
                 width: parent.width
                 text: root.title
-                color: root.active ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurface
+                color: root.active ? Theme.scheme.onPrimary : Theme.scheme.onSurface
                 font.pixelSize: 13
                 font.weight: Font.Medium
                 elide: Text.ElideRight
@@ -88,7 +88,7 @@ AbstractButton {
             M3Text {
                 width: parent.width
                 text: root.subtitle
-                color: root.active ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurfaceVariant
+                color: root.active ? Theme.scheme.onPrimary : Theme.scheme.onSurfaceVariant
                 opacity: root.active ? 0.82 : 1
                 font.pixelSize: 12
                 elide: Text.ElideRight
@@ -108,7 +108,7 @@ AbstractButton {
             name: "chevron_right"
             size: 20
             weight: 500
-            color: root.active ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurfaceVariant
+            color: root.active ? Theme.scheme.onPrimary : Theme.scheme.onSurfaceVariant
         }
     }
 

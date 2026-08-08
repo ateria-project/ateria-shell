@@ -102,7 +102,7 @@ Item {
             radius: Metrics.radiusSm
             color: Boolean(root.activeWindowLayout?.windowData?.urgent)
                 ? Theme.scheme.errorContainer
-                : (root.useAppIcons ? Theme.scheme.surfaceContainerHighest : Theme.scheme.primaryContainer)
+                : (root.useAppIcons ? Theme.scheme.surfaceContainerHighest : Theme.scheme.secondaryContainer)
 
             Behavior on color {
                 ColorAnimation { duration: Motion.durationShort }

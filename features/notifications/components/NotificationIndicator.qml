@@ -12,7 +12,7 @@ AbstractButton {
     readonly property int notificationCount: NotificationService.nonTransientCount
     readonly property string displayedCount: root.notificationCount > 99 ? "99+" : String(root.notificationCount)
     readonly property bool active: SurfaceController.notificationPanelOpen && SurfaceController.notificationPanelScreen === root.screen
-    readonly property color contentColor: root.active ? Theme.scheme.onPrimary : Theme.scheme.onSurface
+    readonly property color contentColor: root.active ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
 
     implicitWidth: 44
     implicitHeight: 28
@@ -29,7 +29,7 @@ AbstractButton {
 
     background: Rectangle {
         radius: Metrics.radiusFull
-        color: root.active ? Theme.scheme.primary : Theme.scheme.surfaceContainer
+        color: root.active ? Theme.scheme.secondaryContainer : Theme.scheme.surfaceContainer
 
         Rectangle {
             anchors.fill: parent

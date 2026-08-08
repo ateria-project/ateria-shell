@@ -58,7 +58,7 @@ Item {
                     radius: width / 2
                     color: {
                         if (dayCell.isToday)
-                            return dayCell.isCurrentMonth ? Theme.scheme.primaryContainer : "transparent";
+                            return dayCell.isCurrentMonth ? Theme.scheme.primary : "transparent";
                         if (dayCell.isSelected)
                             return Theme.scheme.surfaceContainerHighest;
                         if (dayCell.down)
@@ -84,7 +84,7 @@ Item {
                         opacity: dayCell.isCurrentMonth ? 1.0 : 0.28
                         color: {
                             if (dayCell.isToday)
-                                return dayCell.isCurrentMonth ? Theme.scheme.onPrimaryContainer : Theme.scheme.onSurface;
+                                return dayCell.isCurrentMonth ? Theme.scheme.onPrimary : Theme.scheme.onSurface;
                             if (!dayCell.isCurrentMonth)
                                 return Theme.scheme.onSurfaceVariant;
                             return Theme.scheme.onSurface;

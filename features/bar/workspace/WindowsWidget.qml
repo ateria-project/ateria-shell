@@ -51,7 +51,7 @@ Rectangle {
         Rectangle {
             anchors.fill: parent
             radius: Metrics.radiusSm
-            color: activeIndicator.urgent ? Theme.scheme.errorContainer : root.useAppIcons ? Theme.scheme.surfaceContainerHighest : Theme.scheme.primaryContainer
+            color: activeIndicator.urgent ? Theme.scheme.errorContainer : root.useAppIcons ? Theme.scheme.surfaceContainerHighest : Theme.scheme.secondaryContainer
 
             Behavior on color {
                 ColorAnimation { duration: Motion.durationShort }

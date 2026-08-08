@@ -164,6 +164,7 @@ M3Panel {
 
                 style: M3Button.Tonal
                 containerColor: Theme.scheme.surfaceContainerHighest
+                contentColor: Theme.scheme.onSurfaceVariant
                 Accessible.name: "Power menu"
 
                 onClicked: powerMenu.open()
@@ -261,6 +262,7 @@ M3Panel {
 
                 style: M3Button.Tonal
                 containerColor: Theme.scheme.surfaceContainerHighest
+                contentColor: Theme.scheme.onSurfaceVariant
 
                 onClicked: PowerService.cyclePowerProfile()
             }
@@ -305,6 +307,7 @@ M3Panel {
 
                 style: M3Button.Tonal
                 containerColor: Theme.scheme.surfaceContainerHighest
+                contentColor: Theme.scheme.onSurfaceVariant
                 Accessible.name: qsTr("Open settings")
                 onClicked: SurfaceController.openSettings(root.controller?.screen ?? null)
             }
