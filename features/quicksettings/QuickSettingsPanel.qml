@@ -181,12 +181,6 @@ TransientPanelWindow {
         }
     }
 
-    component PanelResizeAnimation: NumberAnimation {
-        duration: Motion.durationPageTransition
-        easing.type: Motion.easingExpressiveSpatial
-        easing.bezierCurve: Motion.expressiveGentleSpatialCurve
-    }
-
     Component {
         id: mainPageComponent
 

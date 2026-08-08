@@ -136,6 +136,12 @@ TransientPanelWindow {
         width: Math.min(root.clipboardWidth, Math.max(0, root.width - Metrics.spacingXl * 2))
         height: clipboardContent.implicitHeight + Metrics.spacingLg * 2
         radius: 16
+        contentClipped: panelHeightAnimation.running
+
+        Behavior on height {
+            PanelResizeAnimation { id: panelHeightAnimation }
+        }
+
         HoverHandler {
             id: pointerSelectionHandler
 

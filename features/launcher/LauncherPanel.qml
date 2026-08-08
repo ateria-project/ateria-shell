@@ -138,6 +138,12 @@ TransientPanelWindow {
         width: Math.min(root.launcherWidth, Math.max(0, root.width - Metrics.spacingXl * 2))
         height: launcherContent.implicitHeight + Metrics.spacingLg * 2
         radius: 16
+        contentClipped: panelHeightAnimation.running
+
+        Behavior on height {
+            PanelResizeAnimation { id: panelHeightAnimation }
+        }
+
         HoverHandler {
             id: pointerSelectionHandler
 
