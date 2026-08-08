@@ -13,6 +13,8 @@ QtObject {
     property real hiddenOffsetX: 0
     property real hiddenOffsetY: 0
     property int duration: Motion.durationSpatialDefault
+    property int easingType: Motion.easingExpressiveSpatial
+    property var easingCurve: Motion.expressiveDefaultSpatialCurve
 
     property real _progress: 0
     property real _travelX: 0
@@ -56,8 +58,8 @@ QtObject {
     property NumberAnimation slideAnimation: NumberAnimation {
         target: root
         property: "_progress"
-        easing.type: Motion.easingExpressiveSpatial
-        easing.bezierCurve: Motion.expressiveDefaultSpatialCurve
+        easing.type: root.easingType
+        easing.bezierCurve: root.easingCurve
         onFinished: root.transitionFinished(root._generation)
     }
 }

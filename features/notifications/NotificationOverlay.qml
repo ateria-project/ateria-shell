@@ -1,13 +1,12 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls
 import Quickshell
 import Quickshell.Wayland
 import qs.components
 import qs.features.notifications.components
-import qs.platform.workspace
 import qs.platform.notifications
+import qs.platform.workspace
 import qs.shell
 import qs.theme
 
@@ -18,33 +17,42 @@ TransientPanelWindow {
     property real topMargin: Metrics.spacingSm
     property real rightMargin: Metrics.spacingMd
     property real maximumHeightRatio: 0.6
-    property real maximumOverlayHeight: root.screen ? Math.max(0, root.screen.height * root.maximumHeightRatio) : overlayColumn.implicitHeight
-    readonly property real targetOverlayHeight: Math.min(overlayColumn.implicitHeight, root.maximumOverlayHeight)
-    property var expandedGroupsByKey: ({})
+    property int maximumCollapsedGroups: 3
+    property string expandedGroupKey: ""
+    property var expansionOverridesByKey: ({})
     property var expandedNotificationsById: ({})
-    property var hoveredGroupsByKey: ({})
+    property bool hidingByGesture: false
 
-    readonly property var protectedGroupKeys: {
-        const groups = NotificationOverlayController.notificationGroups;
-        const hoveredGroups = root.hoveredGroupsByKey;
-        const protectedGroups = {};
-
-        for (const group of groups) {
-            if (hoveredGroups[group.key])
-                protectedGroups[group.key] = true;
-        }
-
-        return protectedGroups;
+    readonly property real maximumOverlayHeight: root.screen ? Math.max(0, root.screen.height * root.maximumHeightRatio) : overlayColumn.implicitHeight
+    readonly property var displayedGroupKeys: {
+        const keys = NotificationOverlayController.notificationGroupKeys;
+        if (root.expandedGroupKey.length > 0 && keys.includes(root.expandedGroupKey))
+            return [root.expandedGroupKey];
+        return keys.slice(0, root.maximumCollapsedGroups);
+    }
+    ListModel {
+        id: overlayGroupModel
     }
 
-    open: NotificationOverlayController.hasNotifications && !SurfaceController.notificationPanelOpen
+    function syncOverlayModel() {
+        NotificationController.reconcileKeyModel(overlayGroupModel, root.displayedGroupKeys);
+    }
+
+    onDisplayedGroupKeysChanged: root.syncOverlayModel()
+    Component.onCompleted: root.syncOverlayModel()
+
+    readonly property real targetOverlayHeight: Math.min(overlayColumn.implicitHeight, root.maximumOverlayHeight)
+
+    open: NotificationOverlayController.visibleRequested && !SurfaceController.notificationPanelOpen
     fallbackScreen: SurfaceController.preferredScreen(WorkspaceService.focusedOutputName)
+    transitionsEnabled: true
     implicitWidth: root.overlayWidth
-    // Keep the native layer surface stable; only the masked viewport follows
-    // notification content size.
+    // The layer surface never participates in content animation. Only the
+    // inner presentation changes size, avoiding Wayland configure loops.
     implicitHeight: root.maximumOverlayHeight
     color: "transparent"
     WlrLayershell.exclusiveZone: 0
+    onTransitionRequested: (entering, generation) => overlayTransition.transition(entering, generation)
     interactiveMask: Region {
         item: overlayViewport
     }
@@ -62,55 +70,27 @@ TransientPanelWindow {
     function groupExpanded(group): bool {
         if (!group)
             return false;
-
-        if (Object.prototype.hasOwnProperty.call(root.expandedGroupsByKey, group.key))
-            return Boolean(root.expandedGroupsByKey[group.key]);
-
-        const groups = NotificationOverlayController.notificationGroups;
-        return groups.length > 0
-            && groups[0].key === group.key
-            && group.notifications.length === 1;
+        if (Object.prototype.hasOwnProperty.call(root.expansionOverridesByKey, group.key))
+            return Boolean(root.expansionOverridesByKey[group.key]);
+        if (root.expandedGroupKey.length > 0)
+            return root.expandedGroupKey === group.key;
+        return root.displayedGroupKeys.length === 1 && group.notifications.length === 1;
     }
 
     function toggleGroupExpanded(group) {
         if (!group)
             return;
 
-        const nextExpanded = Object.assign({}, root.expandedGroupsByKey);
-        nextExpanded[group.key] = !root.groupExpanded(group);
-        root.expandedGroupsByKey = nextExpanded;
-    }
-
-    function setGroupHovered(key: string, hovered: bool) {
-        if (key.length === 0)
-            return;
-        if (Boolean(root.hoveredGroupsByKey[key]) === hovered)
-            return;
-
-        const nextHoveredGroups = Object.assign({}, root.hoveredGroupsByKey);
-        if (hovered)
-            nextHoveredGroups[key] = true;
-        else
-            delete nextHoveredGroups[key];
-        root.hoveredGroupsByKey = nextHoveredGroups;
-    }
-
-    function retainHoveredGroups() {
-        const activeGroups = {};
-        for (const group of NotificationOverlayController.notificationGroups)
-            activeGroups[group.key] = true;
-
-        const nextHoveredGroups = {};
-        for (const key of Object.keys(root.hoveredGroupsByKey)) {
-            if (activeGroups[key] && root.hoveredGroupsByKey[key])
-                nextHoveredGroups[key] = true;
-        }
-        root.hoveredGroupsByKey = nextHoveredGroups;
+        const key = String(group.key);
+        const expanded = !root.groupExpanded(group);
+        const overrides = Object.assign({}, root.expansionOverridesByKey);
+        overrides[key] = expanded;
+        root.expansionOverridesByKey = overrides;
+        root.expandedGroupKey = expanded ? key : "";
     }
 
     function notificationExpanded(notification): bool {
-        const key = NotificationController.notificationKey(notification);
-        return Boolean(root.expandedNotificationsById[key]);
+        return Boolean(root.expandedNotificationsById[NotificationController.notificationKey(notification)]);
     }
 
     function toggleNotificationExpanded(notification) {
@@ -118,29 +98,41 @@ TransientPanelWindow {
         if (key.length === 0)
             return;
 
-        const nextExpanded = Object.assign({}, root.expandedNotificationsById);
-        if (nextExpanded[key])
-            delete nextExpanded[key];
+        const expanded = Object.assign({}, root.expandedNotificationsById);
+        if (expanded[key])
+            delete expanded[key];
         else
-            nextExpanded[key] = true;
-        root.expandedNotificationsById = nextExpanded;
+            expanded[key] = true;
+        root.expandedNotificationsById = expanded;
+    }
+
+    function finishVerticalGesture() {
+        const dismissDistance = Math.min(96, overlayViewport.height / 3);
+        root.hidingByGesture = overlayGesturePresentation.offsetY <= -dismissDistance;
+        gestureSettle.to = root.hidingByGesture ? -overlayViewport.height : 0;
+        gestureSettle.restart();
     }
 
     Connections {
         target: NotificationOverlayController
 
         function onExpansionRevisionChanged() {
-            root.expandedGroupsByKey = ({});
+            root.expandedGroupKey = "";
+            root.expansionOverridesByKey = ({});
             root.expandedNotificationsById = ({});
-            root.retainHoveredGroups();
         }
     }
 
-    onProtectedGroupKeysChanged: NotificationOverlayController.setProtectedGroupKeys(root.protectedGroupKeys)
-    Component.onCompleted: NotificationOverlayController.setProtectedGroupKeys(root.protectedGroupKeys)
-    Component.onDestruction: NotificationOverlayController.setProtectedGroupKeys(({}))
+    Connections {
+        target: SurfaceController
 
-    Flickable {
+        function onNotificationPanelOpenChanged() {
+            if (SurfaceController.notificationPanelOpen)
+                NotificationOverlayController.hide();
+        }
+    }
+
+    Item {
         id: overlayViewport
 
         anchors {
@@ -148,53 +140,109 @@ TransientPanelWindow {
             right: parent.right
         }
         width: root.overlayWidth
-        // The viewport owns its content-derived height directly.
         height: root.targetOverlayHeight
-        contentWidth: width
-        contentHeight: overlayColumn.implicitHeight
-        boundsBehavior: Flickable.StopAtBounds
-        flickableDirection: Flickable.VerticalFlick
         clip: true
 
-        Column {
-            id: overlayColumn
+        PresentationLayer {
+            id: overlayPresentation
 
-            width: overlayViewport.width
-            spacing: Metrics.spacingSm
+            anchors.fill: parent
 
-            Repeater {
-                // Visibility must not own delegate lifetime. Keeping the
-                // cards mounted prevents model construction from changing
-                // geometry during a future entrance.
-                model: NotificationOverlayController.notificationGroups
+            PresentationLayer {
+                id: overlayGesturePresentation
 
-                delegate: NotificationOverlayEntry {
-                    required property int index
-                    required property var modelData
-                    readonly property var notificationGroupData: modelData
+                anchors.fill: parent
 
-                    width: overlayColumn.width
-                    group: notificationGroupData
-                    expanded: root.groupExpanded(group)
-                    isMemberExpanded: notification => root.notificationExpanded(notification)
-                    toggleMemberExpanded: notification => root.toggleNotificationExpanded(notification)
-                    onHoveredChanged: root.setGroupHovered(group.key, hovered)
-                    onExpansionRequested: root.toggleGroupExpanded(group)
-                    onDismissRequested: groupKey => {
-                        root.setGroupHovered(groupKey, false);
-                        if (group.notifications.length > 1) {
-                            NotificationService.dismissMany(group.notifications);
-                        } else {
-                            NotificationService.dismiss(group.notifications[0]);
+                Column {
+                    id: overlayColumn
+
+                    width: root.overlayWidth
+                    spacing: Metrics.spacingSm
+
+                    Repeater {
+                        model: overlayGroupModel
+
+                        delegate: NotificationCard {
+                            required property string key
+
+                            width: overlayColumn.width
+                            group: NotificationOverlayController.notificationGroupsByKey[key]
+                            expanded: root.groupExpanded(group)
+                            surfaceVisible: true
+                            memberSwipeEnabled: expanded
+                            dismissLeftEnabled: false
+                            maximumGroupContentHeight: Math.max(120, root.maximumOverlayHeight - 96)
+                            isMemberExpanded: notification => root.notificationExpanded(notification)
+                            toggleMemberExpanded: notification => root.toggleNotificationExpanded(notification)
+                            onExpansionRequested: root.toggleGroupExpanded(group)
+                            onDismissRequested: {
+                                if (group)
+                                    NotificationOverlayController.dismissGroup(group);
+                            }
                         }
                     }
-                    Component.onCompleted: root.setGroupHovered(group.key, hovered)
                 }
             }
         }
 
-        ScrollBar.vertical: M3ScrollBar {
-            policy: overlayColumn.implicitHeight > overlayViewport.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+        // A handler on the shared ancestor observes vertical drags without
+        // covering buttons or the expanded member viewport.
+        DragHandler {
+            id: verticalHideHandler
+
+            target: null
+            enabled: root.interactive && !root.hidingByGesture
+            xAxis.enabled: false
+            yAxis.enabled: true
+            onActiveChanged: {
+                if (active) {
+                    gestureSettle.stop();
+                    NotificationOverlayController.setHovered(true);
+                } else {
+                    root.finishVerticalGesture();
+                }
+            }
+            onTranslationChanged: {
+                if (active)
+                    overlayGesturePresentation.offsetY = Math.min(0, activeTranslation.y);
+            }
         }
+
+        HoverHandler {
+            onHoveredChanged: {
+                if (!verticalHideHandler.active)
+                    NotificationOverlayController.setHovered(hovered);
+            }
+        }
+
+        NumberAnimation {
+            id: gestureSettle
+
+            target: overlayGesturePresentation
+            property: "offsetY"
+            duration: Motion.durationMedium
+            easing.type: Motion.easingEmphasized
+            easing.bezierCurve: Motion.emphasizedCurve
+            onFinished: {
+                if (root.hidingByGesture)
+                    NotificationOverlayController.hide();
+            }
+        }
+    }
+
+    SlideTransition {
+        id: overlayTransition
+
+        target: overlayPresentation
+        hiddenOffsetY: -(root.targetOverlayHeight + root.topMargin + 5)
+        easingType: Motion.easingEmphasized
+        easingCurve: Motion.emphasizedCurve
+        onTransitionFinished: generation => root.completeTransition(generation)
+    }
+
+    onFullyClosed: {
+        overlayGesturePresentation.offsetY = 0;
+        root.hidingByGesture = false;
+        NotificationOverlayController.completeExit();
     }
 }

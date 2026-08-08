@@ -12,10 +12,20 @@ Singleton {
     property var expandedGroupsByKey: ({})
     property var metadataById: ({})
     property int clockRevision: 0
-    readonly property var notificationGroups: root.groupNotifications(NotificationService.nonTransientNotifications)
+    property var notificationGroups: []
+    property var notificationGroupKeys: []
+    property var notificationGroupsByKey: ({})
+
+    readonly property alias notificationGroupModel: _notificationGroupModel
+
+    ListModel {
+        id: _notificationGroupModel
+    }
 
     function notificationKey(notification): string {
-        return notification ? String(notification.id) : "";
+        if (!notification || notification.id === null || notification.id === undefined)
+            return "";
+        return String(notification.id);
     }
 
     function remember(notification) {
@@ -37,6 +47,40 @@ Singleton {
 
     function scheduleReconcile() {
         reconcileTimer.restart();
+    }
+
+    function groupStatesEqual(first: var, second: var): bool {
+        if (first.length !== second.length)
+            return false;
+
+        for (let i = 0; i < first.length; i++) {
+            const a = first[i];
+            const b = second[i];
+            if (!a || !b
+                    || a.key !== b.key
+                    || a.sourceName !== b.sourceName
+                    || a.appIconSource !== b.appIconSource
+                    || a.latestNotification !== b.latestNotification
+                    || a.notifications.length !== b.notifications.length)
+                return false;
+
+            for (let j = 0; j < a.notifications.length; j++) {
+                if (a.notifications[j] !== b.notifications[j])
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    function stringArraysEqual(first: var, second: var): bool {
+        if (first.length !== second.length)
+            return false;
+        for (let i = 0; i < first.length; i++) {
+            if (first[i] !== second[i])
+                return false;
+        }
+        return true;
     }
 
     function parseBody(value): var {
@@ -71,11 +115,12 @@ Singleton {
         }
 
         const key = root.notificationKey(notification);
+        const cacheable = key.length > 0;
         const body = String(notification.body || "");
         const appName = String(notification.appName || "");
         const desktopEntry = String(notification.desktopEntry || "");
         const appIcon = String(notification.appIcon || "");
-        const cached = root.metadataById[key];
+        const cached = cacheable ? root.metadataById[key] : null;
         if (cached
                 && cached.sourceBody === body
                 && cached.sourceAppName === appName
@@ -111,7 +156,8 @@ Singleton {
             groupKey: groupKey,
             iconSource: iconSource
         };
-        root.metadataById[key] = value;
+        if (cacheable)
+            root.metadataById[key] = value;
         return value;
     }
 
@@ -144,33 +190,72 @@ Singleton {
         return summary + "  " + body;
     }
 
-    function groupNotifications(notifications): var {
+    function groupNotificationState(notifications: var): var {
         const groupsByKey = {};
         const groups = [];
+        const keys = [];
 
         for (let index = notifications.length - 1; index >= 0; index--) {
             const notification = notifications[index];
             if (!notification)
                 continue;
 
-            const key = root.groupKey(notification);
+            const meta = root.metadata(notification);
+            const key = meta.groupKey;
             let group = groupsByKey[key];
             if (!group) {
                 group = {
                     key: key,
-                    sourceName: root.sourceName(notification),
-                    appIconSource: root.iconSource(notification),
+                    sourceName: meta.sourceName,
+                    appIconSource: meta.iconSource,
                     latestNotification: notification,
                     notifications: []
                 };
                 groupsByKey[key] = group;
                 groups.push(group);
+                keys.push(key);
             }
 
             group.notifications.push(notification);
         }
 
-        return groups;
+        return {
+            groups: groups,
+            keys: keys,
+            byKey: groupsByKey
+        };
+    }
+
+    function groupNotifications(notifications: var): var {
+        return root.groupNotificationState(notifications).groups;
+    }
+
+    function reconcileKeyModel(model: var, nextKeys: var) {
+        const nextKeysSet = new Set(nextKeys);
+
+        for (let i = model.count - 1; i >= 0; i--) {
+            const key = model.get(i).key;
+            if (!nextKeysSet.has(key)) {
+                model.remove(i, 1);
+            }
+        }
+
+        for (let i = 0; i < nextKeys.length; i++) {
+            const nextKey = nextKeys[i];
+            let currentIndex = -1;
+            for (let j = i; j < model.count; j++) {
+                if (model.get(j).key === nextKey) {
+                    currentIndex = j;
+                    break;
+                }
+            }
+
+            if (currentIndex === -1) {
+                model.insert(i, { key: nextKey });
+            } else if (currentIndex !== i) {
+                model.move(currentIndex, i, 1);
+            }
+        }
     }
 
     function reconcileNotifications() {
@@ -196,15 +281,13 @@ Singleton {
                 delete root.metadataById[key];
         }
 
-        const groupCounts = {};
-        for (const notification of NotificationService.nonTransientNotifications) {
-            const key = root.groupKey(notification);
-            groupCounts[key] = (groupCounts[key] ?? 0) + 1;
-        }
-
+        // Build group state once, then derive expansion validity from it.
+        // This avoids a second full grouping/counting pass over notifications.
+        const newState = root.groupNotificationState(NotificationService.nonTransientNotifications);
         const nextExpandedGroups = {};
         for (const key of Object.keys(root.expandedGroupsByKey)) {
-            if ((groupCounts[key] ?? 0) > 1)
+            const group = newState.byKey[key];
+            if (group && group.notifications.length > 1)
                 nextExpandedGroups[key] = true;
         }
 
@@ -214,6 +297,21 @@ Singleton {
             root.expandedById = nextExpanded;
         if (!root.mapsEqual(root.expandedGroupsByKey, nextExpandedGroups))
             root.expandedGroupsByKey = nextExpandedGroups;
+
+        const groupsChanged = !root.groupStatesEqual(root.notificationGroups, newState.groups);
+        const keysChanged = !root.stringArraysEqual(root.notificationGroupKeys, newState.keys);
+
+        // Preserve object identity when the visible grouping did not actually
+        // change. This keeps delegate group/size bindings quiet on unrelated
+        // notification-model updates.
+        if (groupsChanged) {
+            root.notificationGroups = newState.groups;
+            root.notificationGroupsByKey = newState.byKey;
+        }
+        if (keysChanged) {
+            root.notificationGroupKeys = newState.keys;
+            root.reconcileKeyModel(_notificationGroupModel, newState.keys);
+        }
     }
 
     function isExpanded(notification): bool {

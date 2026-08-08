@@ -12,6 +12,7 @@ M3Text {
     readonly property bool pressed: actionTapHandler.pressed
 
     text: root.hasAction ? String(root.action.text || qsTr("Open")) : ""
+    textFormat: Text.PlainText
     visible: root.hasAction
     color: Theme.scheme.primary
     opacity: root.pressed ? 0.7 : 1

@@ -19,17 +19,20 @@ Control {
     property bool drawSeparator: true
     property color toggleContainerColor: Theme.scheme.surfaceContainerHighest
 
-    readonly property string summary: root.notification ? String(root.notification.summary || "") : ""
-    readonly property string sourceName: NotificationController.sourceName(root.notification)
-    readonly property string body: NotificationController.bodyText(root.notification)
+    readonly property var meta: NotificationController.metadata(root.notification)
+    readonly property string summary: root.notification ? String(root.notification.summary || "").trim() : ""
+    readonly property string sourceName: root.meta.sourceName
+    readonly property string body: root.meta.body
     readonly property bool hasSummary: root.summary.length > 0 && root.summary !== root.sourceName
     readonly property bool hasBody: root.body.length > 0
     readonly property bool hasActions: Boolean(root.notification && root.notification.actions && root.notification.actions.length > 0)
-    readonly property bool hasImage: Boolean(root.notification && String(root.notification.image || "").length > 0)
+    readonly property string imageSource: root.notification ? String(root.notification.image || "") : ""
+    readonly property bool hasImage: root.imageSource.length > 0
     readonly property bool expandable: root.hasBody || root.hasActions || root.hasImage
-    readonly property string appIconSource: NotificationController.iconSource(root.notification)
-    readonly property string groupedIconSource: root.hasImage && root.notification ? String(root.notification.image) : root.appIconSource
-    readonly property real collapsedIconOffset: Math.max(0, (notificationRow.implicitHeight - applicationIconContainer.implicitHeight) / 2)
+    readonly property string appIconSource: root.meta.iconSource
+    readonly property string groupedIconSource: root.hasImage ? root.imageSource : root.appIconSource
+    readonly property real rowImplicitHeight: notificationRow.implicitHeight
+    readonly property real collapsedIconOffset: Math.max(0, (root.rowImplicitHeight - applicationIconContainer.implicitHeight) / 2)
 
     signal expansionRequested
 
@@ -51,6 +54,14 @@ Control {
             Layout.alignment: Qt.AlignTop
             transform: Translate {
                 y: root.expanded ? 0 : root.collapsedIconOffset
+
+                Behavior on y {
+                    NumberAnimation {
+                        duration: Motion.durationNotification
+                        easing.type: Motion.easingEmphasized
+                        easing.bezierCurve: Motion.emphasizedCurve
+                    }
+                }
             }
 
             Rectangle {
@@ -78,7 +89,7 @@ Control {
                 sourceSize.height: height
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
-                visible: !root.grouped && source.toString().length > 0 && status !== Image.Error
+                visible: !root.grouped && root.appIconSource.length > 0 && status !== Image.Error
             }
 
             ClippingRectangle {
@@ -114,6 +125,7 @@ Control {
                 Layout.fillWidth: true
                 visible: !root.hasSummary || root.expanded
                 text: root.grouped && root.expanded ? root.relativeTime : qsTr("%1  •  %2").arg(root.sourceName).arg(root.relativeTime)
+                textFormat: Text.PlainText
                 elide: Text.ElideRight
                 maximumLineCount: 1
                 color: Theme.scheme.onSurfaceVariant
@@ -153,7 +165,7 @@ Control {
                 spacing: Metrics.spacingXl
 
                 Repeater {
-                    model: root.expanded && root.hasActions ? root.notification.actions : []
+                    model: root.expanded && root.hasActions ? root.notification.actions : null
 
                     delegate: NotificationActionLink {
                         required property var modelData
@@ -165,16 +177,34 @@ Control {
         }
 
         ClippingRectangle {
+            id: notificationImage
+
+            readonly property real collapsedOffset: visible ? Math.max(0, (root.rowImplicitHeight - height) / 2) : 0
+
             visible: !root.grouped && root.hasImage
             Layout.preferredWidth: 48
             Layout.preferredHeight: 48
-            Layout.alignment: root.expanded ? Qt.AlignTop : Qt.AlignCenter
+            Layout.alignment: Qt.AlignTop
             radius: Metrics.radiusMd
             color: Theme.scheme.surfaceContainerHighest
 
+            transform: Translate {
+                y: root.expanded ? 0 : notificationImage.collapsedOffset
+
+                Behavior on y {
+                    enabled: notificationImage.visible
+
+                    NumberAnimation {
+                        duration: Motion.durationNotification
+                        easing.type: Motion.easingEmphasized
+                        easing.bezierCurve: Motion.emphasizedCurve
+                    }
+                }
+            }
+
             Image {
                 anchors.fill: parent
-                source: !root.grouped && root.notification ? root.notification.image : ""
+                source: !root.grouped ? root.imageSource : ""
                 sourceSize.width: 96
                 sourceSize.height: 96
                 fillMode: Image.PreserveAspectCrop

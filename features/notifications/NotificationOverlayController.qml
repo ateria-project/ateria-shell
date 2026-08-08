@@ -9,13 +9,17 @@ Singleton {
 
     property int displayDuration: 6000
     property var notifications: []
-    property var expiresAtByGroupKey: ({})
-    property var remainingDurationByGroupKey: ({})
-    property var protectedGroupKeys: ({})
-    property bool hideTimersPaused: false
+    property bool visibleRequested: false
+    property bool hovered: false
+    property double hideDeadline: 0
+    property int remainingDuration: displayDuration
     property int expansionRevision: 0
+    property var dismissedNotificationKeys: ({})
 
-    readonly property var notificationGroups: NotificationController.groupNotifications(root.notifications)
+    readonly property var notificationGroupState: NotificationController.groupNotificationState(root.notifications)
+    readonly property var notificationGroups: root.notificationGroupState.groups
+    readonly property var notificationGroupKeys: root.notificationGroupState.keys
+    readonly property var notificationGroupsByKey: root.notificationGroupState.byKey
     readonly property bool hasNotifications: root.notifications.length > 0
 
     function notificationKey(notification): string {
@@ -26,92 +30,44 @@ Singleton {
         return NotificationController.groupKey(notification);
     }
 
-    function scheduleReconcile() {
-        reconcileTimer.restart();
+    function resetHideDeadline() {
+        root.remainingDuration = root.displayDuration;
+        root.hideDeadline = Date.now() + root.displayDuration;
+        if (!root.hovered && root.visibleRequested)
+            hideTimer.restart();
     }
 
-    function scheduleHideTimer() {
-        hideTimer.stop();
-        if (root.hideTimersPaused || !root.hasNotifications)
+    function setHovered(value: bool) {
+        if (root.hovered === value)
             return;
 
-        let nextExpiresAt = Number.POSITIVE_INFINITY;
-        for (const key of Object.keys(root.expiresAtByGroupKey))
-            nextExpiresAt = Math.min(nextExpiresAt, root.expiresAtByGroupKey[key]);
-        if (!Number.isFinite(nextExpiresAt))
-            return;
-
-        hideTimer.interval = Math.max(1, Math.ceil(nextExpiresAt - Date.now()));
-        hideTimer.start();
-    }
-
-    function setProtectedGroupKeys(keys) {
-        const nextProtectedGroups = Object.assign({}, keys || {});
-        const currentKeys = Object.keys(root.protectedGroupKeys);
-        const nextKeys = Object.keys(nextProtectedGroups);
-        if (currentKeys.length === nextKeys.length && currentKeys.every(key => nextProtectedGroups[key]))
-            return;
-
-        const nextExpiresAt = Object.assign({}, root.expiresAtByGroupKey);
-        const nextRemainingDurations = Object.assign({}, root.remainingDurationByGroupKey);
-        const shouldPauseTimers = nextKeys.some(key => nextProtectedGroups[key]);
-        const now = Date.now();
-
-        if (!root.hideTimersPaused && shouldPauseTimers) {
-            for (const key of Object.keys(nextExpiresAt))
-                nextRemainingDurations[key] = Math.max(0, nextExpiresAt[key] - now);
-        } else if (root.hideTimersPaused && !shouldPauseTimers) {
-            for (const key of Object.keys(nextRemainingDurations))
-                nextExpiresAt[key] = now + nextRemainingDurations[key];
-            for (const key of Object.keys(nextRemainingDurations))
-                delete nextRemainingDurations[key];
+        root.hovered = value;
+        if (value) {
+            root.remainingDuration = Math.max(1, Math.ceil(root.hideDeadline - Date.now()));
+            hideTimer.stop();
+        } else if (root.visibleRequested) {
+            root.hideDeadline = Date.now() + root.remainingDuration;
+            hideTimer.restart();
         }
-
-        root.protectedGroupKeys = nextProtectedGroups;
-        root.hideTimersPaused = shouldPauseTimers;
-        root.expiresAtByGroupKey = nextExpiresAt;
-        root.remainingDurationByGroupKey = nextRemainingDurations;
-        root.scheduleHideTimer();
     }
 
-    function retainedGroupExpirations(notifications): var {
-        const nextExpiresAt = {};
-        for (const notification of notifications) {
-            const key = root.groupKey(notification);
-            if (Object.prototype.hasOwnProperty.call(root.expiresAtByGroupKey, key))
-                nextExpiresAt[key] = root.expiresAtByGroupKey[key];
-        }
-        return nextExpiresAt;
-    }
-
-    function retainedGroupRemainingDurations(notifications): var {
-        const nextRemainingDurations = {};
-        for (const notification of notifications) {
-            const key = root.groupKey(notification);
-            if (Object.prototype.hasOwnProperty.call(root.remainingDurationByGroupKey, key))
-                nextRemainingDurations[key] = root.remainingDurationByGroupKey[key];
-        }
-        return nextRemainingDurations;
-    }
-
-    function historyGroup(notification): var {
-        const notificationId = root.notificationKey(notification);
-        const notificationGroup = root.groupKey(notification);
-        const group = [];
+    function historyFor(notification): var {
+        const key = root.notificationKey(notification);
+        const group = root.groupKey(notification);
+        const history = [];
 
         if (!notification.transient) {
             for (const candidate of NotificationService.nonTransientNotifications) {
-                if (root.groupKey(candidate) !== notificationGroup)
+                const candidateKey = root.notificationKey(candidate);
+                if (candidateKey === key || root.dismissedNotificationKeys[candidateKey])
                     continue;
-                if (root.notificationKey(candidate) === notificationId)
-                    continue;
-
-                group.push(candidate);
+                if (root.groupKey(candidate) === group)
+                    history.push(candidate);
             }
         }
 
-        group.push(notification);
-        return group;
+        history.push(notification);
+        return history;
     }
 
     function show(notification) {
@@ -119,95 +75,100 @@ Singleton {
         if (key.length === 0)
             return;
 
-        const shownGroupKey = root.groupKey(notification);
-        const nextNotifications = [];
-        const shownGroupHistory = [];
-        for (const candidate of root.notifications) {
-            if (root.notificationKey(candidate) === key)
-                continue;
-            if (root.groupKey(candidate) === shownGroupKey)
-                shownGroupHistory.push(candidate);
-            else
-                nextNotifications.push(candidate);
+        if (root.dismissedNotificationKeys[key]) {
+            const dismissed = Object.assign({}, root.dismissedNotificationKeys);
+            delete dismissed[key];
+            root.dismissedNotificationKeys = dismissed;
         }
 
-        const history = shownGroupHistory.length > 0 ? shownGroupHistory : root.historyGroup(notification);
-        for (const historyNotification of history)
-            nextNotifications.push(historyNotification);
-        if (history.length === 0 || root.notificationKey(history[history.length - 1]) !== key)
-            nextNotifications.push(notification);
+        const group = root.groupKey(notification);
+        const next = root.visibleRequested ? root.notifications.filter(candidate => {
+            return root.groupKey(candidate) !== group;
+        }) : [];
+        for (const candidate of root.historyFor(notification))
+            next.push(candidate);
 
-        const nextExpiresAt = root.retainedGroupExpirations(nextNotifications);
-        const nextRemainingDurations = root.retainedGroupRemainingDurations(nextNotifications);
-        nextExpiresAt[shownGroupKey] = Date.now() + root.displayDuration;
-        if (root.hideTimersPaused)
-            nextRemainingDurations[shownGroupKey] = root.displayDuration;
-        else
-            delete nextRemainingDurations[shownGroupKey];
-
-        root.notifications = nextNotifications;
-        root.expiresAtByGroupKey = nextExpiresAt;
-        root.remainingDurationByGroupKey = nextRemainingDurations;
+        root.notifications = next;
         root.expansionRevision++;
-        root.scheduleHideTimer();
+        root.visibleRequested = true;
+        root.resetHideDeadline();
+    }
+
+    function hide() {
+        if (!root.visibleRequested)
+            return;
+
+        root.visibleRequested = false;
+        hideTimer.stop();
+    }
+
+    function completeExit() {
+        if (root.visibleRequested)
+            return;
+
+        root.notifications = [];
+        root.hovered = false;
+        root.remainingDuration = root.displayDuration;
+        root.expansionRevision++;
+    }
+
+    function dismissGroup(group): bool {
+        if (!group || !group.notifications || group.notifications.length === 0)
+            return false;
+
+        const dismissed = Object.assign({}, root.dismissedNotificationKeys);
+        for (const notification of group.notifications)
+            dismissed[root.notificationKey(notification)] = true;
+        root.dismissedNotificationKeys = dismissed;
+
+        const groupKey = String(group.key || "");
+        root.notifications = root.notifications.filter(notification => {
+            return root.groupKey(notification) !== groupKey;
+        });
+        root.expansionRevision++;
+        if (root.notifications.length === 0)
+            root.hide();
+        else
+            root.resetHideDeadline();
+
+        return group.notifications.length > 1 ? NotificationService.dismissMany(group.notifications) : NotificationService.dismiss(group.notifications[0]);
     }
 
     function reconcileNotifications() {
-        const activeKeys = {};
-        for (const notification of NotificationService.notifications)
-            activeKeys[root.notificationKey(notification)] = true;
+        const activeByKey = {};
+        for (const notification of NotificationService.notifications) {
+            const key = root.notificationKey(notification);
+            if (key.length > 0)
+                activeByKey[key] = notification;
+        }
 
-        root.removeWhere(notification => {
-            return !activeKeys[root.notificationKey(notification)];
-        }, false);
-    }
+        const dismissed = {};
+        for (const key of Object.keys(root.dismissedNotificationKeys)) {
+            if (activeByKey[key])
+                dismissed[key] = true;
+        }
+        if (!NotificationController.mapsEqual(root.dismissedNotificationKeys, dismissed))
+            root.dismissedNotificationKeys = dismissed;
 
-    function removeWhere(predicate, resetExpansionState: bool) {
-        const nextNotifications = root.notifications.filter(notification => {
-            return !predicate(notification);
-        });
-        if (nextNotifications.length === root.notifications.length)
-            return false;
+        const next = [];
+        let changed = false;
+        for (const notification of root.notifications) {
+            const activeNotification = activeByKey[root.notificationKey(notification)];
+            if (!activeNotification) {
+                changed = true;
+                continue;
+            }
 
-        root.notifications = nextNotifications;
-        root.expiresAtByGroupKey = root.retainedGroupExpirations(nextNotifications);
-        root.remainingDurationByGroupKey = root.retainedGroupRemainingDurations(nextNotifications);
-        if (resetExpansionState)
-            root.expansionRevision++;
-        root.scheduleHideTimer();
-        return true;
-    }
-
-    function hideGroup(key: string) {
-        if (key.length === 0)
+            next.push(activeNotification);
+            if (activeNotification !== notification)
+                changed = true;
+        }
+        if (!changed)
             return;
 
-        root.removeWhere(notification => {
-            return root.groupKey(notification) === key;
-        }, true);
-    }
-
-    function hideNotification(notification) {
-        const key = root.notificationKey(notification);
-        if (key.length === 0)
-            return;
-
-        root.removeWhere(candidate => {
-            return root.notificationKey(candidate) === key;
-        }, false);
-    }
-
-    function pruneExpired() {
-        if (root.hideTimersPaused)
-            return;
-
-        const now = Date.now();
-        const removed = root.removeWhere(notification => {
-            const key = root.groupKey(notification);
-            return (root.expiresAtByGroupKey[key] ?? 0) <= now;
-        }, true);
-        if (!removed)
-            root.scheduleHideTimer();
+        root.notifications = next;
+        if (next.length === 0)
+            root.hide();
     }
 
     Connections {
@@ -219,7 +180,7 @@ Singleton {
 
         function onDismissalBatchActiveChanged() {
             if (!NotificationService.dismissalBatchActive)
-                root.scheduleReconcile();
+                reconcileTimer.restart();
         }
     }
 
@@ -228,7 +189,7 @@ Singleton {
 
         function onValuesChanged() {
             if (!NotificationService.dismissalBatchActive)
-                root.scheduleReconcile();
+                reconcileTimer.restart();
         }
     }
 
@@ -243,7 +204,8 @@ Singleton {
     Timer {
         id: hideTimer
 
+        interval: Math.max(1, root.remainingDuration)
         repeat: false
-        onTriggered: root.pruneExpired()
+        onTriggered: root.hide()
     }
 }

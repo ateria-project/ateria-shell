@@ -11,6 +11,7 @@ Singleton {
 
     readonly property int durationShort: 100
     readonly property int durationMedium: 200
+    readonly property int durationNotification: 240
     readonly property int durationLong: 300
     readonly property int durationSpatialDefault: 380
     readonly property int durationPageTransition: 320
