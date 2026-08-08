@@ -305,6 +305,8 @@ M3Panel {
 
                 style: M3Button.Tonal
                 containerColor: Theme.scheme.surfaceContainerHighest
+                Accessible.name: qsTr("Open settings")
+                onClicked: SurfaceController.openSettings(root.controller?.screen ?? null)
             }
         }
     }

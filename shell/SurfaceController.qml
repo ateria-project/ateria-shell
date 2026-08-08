@@ -11,7 +11,8 @@ Singleton {
         Calendar = 2,
         NotificationPanel = 3,
         Launcher = 4,
-        Clipboard = 5
+        Clipboard = 5,
+        Settings = 6
     }
 
     property int activeSurface: SurfaceController.None
@@ -23,11 +24,13 @@ Singleton {
     property var notificationPanelScreen: null
     property var launcherScreen: null
     property var clipboardScreen: null
+    property var settingsScreen: null
     readonly property bool quickSettingsOpen: root.activeSurface === SurfaceController.QuickSettings
     readonly property bool calendarOpen: root.activeSurface === SurfaceController.Calendar
     readonly property bool notificationPanelOpen: root.activeSurface === SurfaceController.NotificationPanel
     readonly property bool launcherOpen: root.activeSurface === SurfaceController.Launcher
     readonly property bool clipboardOpen: root.activeSurface === SurfaceController.Clipboard
+    readonly property bool settingsOpen: root.activeSurface === SurfaceController.Settings
 
     function preferredScreen(outputName: string): var {
         const screens = Quickshell.screens;
@@ -52,6 +55,9 @@ Singleton {
             break;
         case SurfaceController.Clipboard:
             root.clipboardScreen = requestedScreen;
+            break;
+        case SurfaceController.Settings:
+            root.settingsScreen = requestedScreen;
             break;
         }
         root.activeScreen = requestedScreen;
@@ -127,6 +133,19 @@ Singleton {
 
     function closeClipboard() {
         if (root.clipboardOpen)
+            root.closeSurface();
+    }
+
+    function toggleSettings(screen) {
+        root.toggleSurface(SurfaceController.Settings, screen);
+    }
+
+    function openSettings(screen) {
+        root.openSurface(SurfaceController.Settings, screen);
+    }
+
+    function closeSettings() {
+        if (root.settingsOpen)
             root.closeSurface();
     }
 }

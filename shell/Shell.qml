@@ -6,6 +6,7 @@ import qs.features.clipboard
 import qs.features.launcher
 import qs.features.notifications
 import qs.features.quicksettings
+import qs.features.settings
 import qs.features.wallpaper
 import qs.platform.notifications
 import qs.platform.clipboard
@@ -61,6 +62,10 @@ Scope {
 
     ClipboardPanel {
         id: clipboardPanel
+    }
+
+    SettingsPanel {
+        id: settingsPanel
     }
 
     NotificationOverlay {
