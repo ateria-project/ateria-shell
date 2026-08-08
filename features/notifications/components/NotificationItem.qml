@@ -3,17 +3,13 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
-import Qt5Compat.GraphicalEffects
-import Quickshell
+import Quickshell.Widgets
 import qs.components
 import qs.features.notifications
-import qs.platform.notifications
 import qs.theme
 
 Control {
     id: root
-
-    clip: true
 
     required property var notification
     property bool expanded: false
@@ -22,7 +18,6 @@ Control {
     property bool showSeparator: true
     property bool drawSeparator: true
     property color toggleContainerColor: Theme.scheme.surfaceContainerHighest
-    property bool animationReady: false
 
     readonly property string summary: root.notification ? String(root.notification.summary || "") : ""
     readonly property string sourceName: NotificationController.sourceName(root.notification)
@@ -34,29 +29,9 @@ Control {
     readonly property bool expandable: root.hasBody || root.hasActions || root.hasImage
     readonly property string appIconSource: NotificationController.iconSource(root.notification)
     readonly property string groupedIconSource: root.hasImage && root.notification ? String(root.notification.image) : root.appIconSource
-    readonly property real expandedContentOffset: metadataLine.implicitHeight + notificationContent.spacing
     readonly property real collapsedIconOffset: Math.max(0, (notificationRow.implicitHeight - applicationIconContainer.implicitHeight) / 2)
 
     signal expansionRequested
-
-    Component.onCompleted: root.animationReady = true
-
-    onExpandedChanged: {
-        if (!root.animationReady || !root.hasSummary)
-            return;
-
-        contentPositionAnimation.stop();
-        contentPositionOffset.y += root.expanded ? -root.expandedContentOffset : root.expandedContentOffset;
-        Qt.callLater(() => contentPositionAnimation.start());
-    }
-
-    Behavior on implicitHeight {
-        NumberAnimation {
-            duration: Motion.durationMedium
-            easing.type: Motion.easingEmphasized
-            easing.bezierCurve: Motion.emphasizedCurve
-        }
-    }
 
     leftPadding: root.grouped ? 0 : Metrics.spacingLg
     rightPadding: root.grouped ? 0 : Metrics.spacingLg
@@ -76,23 +51,13 @@ Control {
             Layout.alignment: Qt.AlignTop
             transform: Translate {
                 y: root.expanded ? 0 : root.collapsedIconOffset
-
-                Behavior on y {
-                    enabled: root.animationReady
-
-                    NumberAnimation {
-                        duration: Motion.durationMedium
-                        easing.type: Motion.easingEmphasized
-                        easing.bezierCurve: Motion.emphasizedCurve
-                    }
-                }
             }
 
             Rectangle {
                 anchors.fill: parent
                 radius: Metrics.radiusFull
                 color: Theme.scheme.primaryContainer
-                visible: !applicationIcon.visible && !groupedIconMask.visible
+                visible: !applicationIcon.visible && !groupedIconContainer.visible
 
                 M3Icon {
                     anchors.centerIn: parent
@@ -116,32 +81,24 @@ Control {
                 visible: !root.grouped && source.toString().length > 0 && status !== Image.Error
             }
 
-            Image {
-                id: groupedIconImage
-
-                anchors.fill: parent
-                source: root.grouped ? root.groupedIconSource : ""
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                visible: false
-            }
-
-            Rectangle {
-                id: groupedIconShape
+            ClippingRectangle {
+                id: groupedIconContainer
 
                 anchors.fill: parent
                 radius: Metrics.radiusFull
-                visible: false
-            }
-
-            OpacityMask {
-                id: groupedIconMask
-
-                anchors.fill: parent
-                source: groupedIconImage
-                maskSource: groupedIconShape
-                cached: true
+                color: "transparent"
                 visible: root.grouped && root.groupedIconSource.length > 0 && groupedIconImage.status !== Image.Error
+
+                Image {
+                    id: groupedIconImage
+
+                    anchors.fill: parent
+                    source: root.grouped ? root.groupedIconSource : ""
+                    sourceSize.width: 64
+                    sourceSize.height: 64
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                }
             }
         }
 
@@ -150,9 +107,6 @@ Control {
 
             Layout.fillWidth: true
             spacing: Metrics.spacingSm
-            transform: Translate {
-                id: contentPositionOffset
-            }
 
             M3Text {
                 id: metadataLine
@@ -199,29 +153,18 @@ Control {
                 spacing: Metrics.spacingXl
 
                 Repeater {
-                    model: root.expanded && root.hasActions ? root.notification.actions.length : 0
+                    model: root.expanded && root.hasActions ? root.notification.actions : []
 
                     delegate: NotificationActionLink {
-                        required property int index
+                        required property var modelData
 
-                        action: root.notification.actions[index]
+                        action: modelData
                     }
                 }
             }
         }
 
-        NumberAnimation {
-            id: contentPositionAnimation
-
-            target: contentPositionOffset
-            property: "y"
-            to: 0
-            duration: Motion.durationMedium
-            easing.type: Motion.easingEmphasized
-            easing.bezierCurve: Motion.emphasizedCurve
-        }
-
-        Rectangle {
+        ClippingRectangle {
             visible: !root.grouped && root.hasImage
             Layout.preferredWidth: 48
             Layout.preferredHeight: 48
@@ -230,28 +173,12 @@ Control {
             color: Theme.scheme.surfaceContainerHighest
 
             Image {
-                id: thumbnailImage
-
                 anchors.fill: parent
                 source: !root.grouped && root.notification ? root.notification.image : ""
+                sourceSize.width: 96
+                sourceSize.height: 96
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
-                visible: false
-            }
-
-            Rectangle {
-                id: thumbnailMask
-
-                anchors.fill: parent
-                radius: Metrics.radiusMd
-                visible: false
-            }
-
-            OpacityMask {
-                anchors.fill: parent
-                source: thumbnailImage
-                maskSource: thumbnailMask
-                cached: true
             }
         }
 

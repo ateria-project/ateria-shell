@@ -11,7 +11,7 @@ AbstractButton {
     property var screen: null
     readonly property int notificationCount: NotificationService.nonTransientCount
     readonly property string displayedCount: root.notificationCount > 99 ? "99+" : String(root.notificationCount)
-    readonly property bool active: SurfaceController.notificationPanelOpen && SurfaceController.activeScreen === root.screen
+    readonly property bool active: SurfaceController.notificationPanelOpen && SurfaceController.notificationPanelScreen === root.screen
     readonly property color contentColor: root.active ? Theme.scheme.onPrimary : Theme.scheme.onSurface
 
     implicitWidth: 44

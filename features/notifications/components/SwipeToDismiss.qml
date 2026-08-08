@@ -36,6 +36,10 @@ Item {
         if (!swipeEnabled)
             root.resetPosition();
     }
+    onWidthChanged: {
+        if (!swipeHandler.active && !root.dismissing)
+            root.resetPosition();
+    }
 
     Item {
         id: swipeContent
@@ -50,6 +54,8 @@ Item {
         enabled: root.swipeEnabled && !root.dismissing
         target: swipeContent
         xAxis.enabled: true
+        xAxis.minimum: -root.width
+        xAxis.maximum: root.width
         yAxis.enabled: false
         onActiveChanged: {
             if (active)

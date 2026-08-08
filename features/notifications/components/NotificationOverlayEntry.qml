@@ -38,12 +38,12 @@ Item {
 
         Loader {
             id: notificationLoader
-
             anchors {
                 left: parent.left
                 right: parent.right
                 top: parent.top
             }
+            asynchronous: false
             sourceComponent: root.grouped ? groupedNotificationComponent : singleNotificationComponent
         }
 

@@ -6,12 +6,12 @@ import Quickshell
 import Quickshell.Wayland
 import qs.components
 import qs.features.notifications.components
-import qs.platform.compositor
+import qs.platform.workspace
 import qs.platform.notifications
 import qs.shell
 import qs.theme
 
-PanelWindow {
+TransientPanelWindow {
     id: root
 
     property real overlayWidth: 400
@@ -19,7 +19,6 @@ PanelWindow {
     property real rightMargin: Metrics.spacingMd
     property real maximumHeightRatio: 0.6
     property real maximumOverlayHeight: root.screen ? Math.max(0, root.screen.height * root.maximumHeightRatio) : overlayColumn.implicitHeight
-    readonly property real targetOverlayWidth: root.overlayWidth
     readonly property real targetOverlayHeight: Math.min(overlayColumn.implicitHeight, root.maximumOverlayHeight)
     property var expandedGroupsByKey: ({})
     property var expandedNotificationsById: ({})
@@ -38,27 +37,15 @@ PanelWindow {
         return protectedGroups;
     }
 
-    readonly property string focusedOutputName: {
-        const focusedWorkspace = NiriService.workspaces.find(workspace => {
-            return workspace.focused;
-        });
-        return focusedWorkspace ? focusedWorkspace.output : "";
-    }
-
-    screen: {
-        const screens = Quickshell.screens;
-        const focusedScreen = screens.find(candidate => {
-            return candidate.name === root.focusedOutputName;
-        });
-        return focusedScreen ?? SurfaceController.activeScreen ?? (screens.length > 0 ? screens[0] : null);
-    }
-    visible: NotificationOverlayController.hasNotifications && !SurfaceController.notificationPanelOpen
+    open: NotificationOverlayController.hasNotifications && !SurfaceController.notificationPanelOpen
+    fallbackScreen: SurfaceController.preferredScreen(WorkspaceService.focusedOutputName)
     implicitWidth: root.overlayWidth
-    // Keep the native layer surface stable while the masked overlay animates.
+    // Keep the native layer surface stable; only the masked viewport follows
+    // notification content size.
     implicitHeight: root.maximumOverlayHeight
     color: "transparent"
     WlrLayershell.exclusiveZone: 0
-    mask: Region {
+    interactiveMask: Region {
         item: overlayViewport
     }
 
@@ -160,22 +147,14 @@ PanelWindow {
             top: parent.top
             right: parent.right
         }
-        width: root.targetOverlayWidth
-        // Notification cards own the resize animation; follow their height directly.
+        width: root.overlayWidth
+        // The viewport owns its content-derived height directly.
         height: root.targetOverlayHeight
         contentWidth: width
         contentHeight: overlayColumn.implicitHeight
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
         clip: true
-
-        Behavior on width {
-            NumberAnimation {
-                duration: Motion.durationMedium
-                easing.type: Motion.easingEmphasized
-                easing.bezierCurve: Motion.emphasizedCurve
-            }
-        }
 
         Column {
             id: overlayColumn
@@ -184,11 +163,15 @@ PanelWindow {
             spacing: Metrics.spacingSm
 
             Repeater {
-                model: root.visible ? NotificationOverlayController.notificationGroups.length : 0
+                // Visibility must not own delegate lifetime. Keeping the
+                // cards mounted prevents model construction from changing
+                // geometry during a future entrance.
+                model: NotificationOverlayController.notificationGroups
 
                 delegate: NotificationOverlayEntry {
                     required property int index
-                    readonly property var notificationGroupData: NotificationOverlayController.notificationGroups[index]
+                    required property var modelData
+                    readonly property var notificationGroupData: modelData
 
                     width: overlayColumn.width
                     group: notificationGroupData

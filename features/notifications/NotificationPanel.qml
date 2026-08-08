@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Quickshell
 import Quickshell.Wayland
 import qs.components
 import qs.features.notifications.components
@@ -11,25 +10,44 @@ import qs.platform.notifications
 import qs.shell
 import qs.theme
 
-PanelWindow {
+TransientPanelWindow {
     id: root
 
-    property bool open: SurfaceController.notificationPanelOpen
-    // Set panelHeight to 0 to size the panel from its content.
+    // Set panelHeight to 0 to use the bounded default height.
     property real panelWidth: 420
     property real panelHeight: 0
+    property real fallbackPanelHeight: 480
+    property real minimumViewportHeight: 80
     property real maximumHeightRatio: 0.6
-    readonly property real maximumPanelHeight: root.screen ? Math.max(0, root.screen.height * root.maximumHeightRatio) : panelContent.implicitHeight + Metrics.spacingMd * 2
-    readonly property real naturalPanelHeight: panelContent.implicitHeight + Metrics.spacingMd * 2
-    readonly property real targetPanelWidth: root.panelWidth
-    readonly property real targetPanelHeight: Math.min(root.panelHeight > 0 ? root.panelHeight : root.naturalPanelHeight, root.maximumPanelHeight)
+    readonly property real maximumPanelHeight: root.screen
+        ? Math.max(0, root.screen.height * root.maximumHeightRatio)
+        : root.fallbackPanelHeight
+    readonly property real footerHeight: NotificationService.hasNonTransientNotifications ? footer.implicitHeight : 0
+    readonly property real footerSpacing: NotificationService.hasNonTransientNotifications ? Metrics.spacingSm : 0
+    readonly property real maximumViewportHeight: Math.max(
+        root.minimumViewportHeight,
+        root.maximumPanelHeight - Metrics.spacingMd * 2 - root.footerHeight - root.footerSpacing
+    )
+    readonly property real contentViewportHeight: NotificationService.hasNonTransientNotifications
+        ? Math.min(
+            Math.max(root.minimumViewportHeight, notificationViewport.contentHeight),
+            root.maximumViewportHeight
+        )
+        : Math.max(root.minimumViewportHeight, emptyState.implicitHeight + Metrics.spacingLg * 2)
+    readonly property real naturalPanelHeight: root.contentViewportHeight
+        + root.footerHeight
+        + root.footerSpacing
+        + Metrics.spacingMd * 2
+    readonly property real targetPanelHeight: Math.min(
+        root.panelHeight > 0 ? root.panelHeight : root.naturalPanelHeight,
+        root.maximumPanelHeight
+    )
 
-    screen: SurfaceController.activeScreen
-    visible: root.open
+    open: SurfaceController.notificationPanelOpen
+    targetScreen: SurfaceController.notificationPanelScreen
     implicitWidth: root.panelWidth
-    // Keep the input surface full-screen while open so clicks outside the
-    // panel can dismiss it.
-    // Keep the native layer surface stable while the masked panel animates.
+    // Keep the native layer surface stable. The inner viewport can follow
+    // content without issuing a Wayland configure.
     implicitHeight: root.maximumPanelHeight
     color: "transparent"
     WlrLayershell.exclusiveZone: 0
@@ -41,47 +59,13 @@ PanelWindow {
         left: true
     }
 
-    MouseArea {
-        anchors {
-            top: parent.top
-            right: parent.right
-            bottom: panelSurface.top
-            left: parent.left
-        }
-        onClicked: SurfaceController.closeNotificationPanel()
+    DismissibleOverlay {
+        excludedItem: panelSurface
+        enabled: root.interactive
+        onDismissed: SurfaceController.closeNotificationPanel()
     }
 
-    MouseArea {
-        anchors {
-            top: panelSurface.bottom
-            right: parent.right
-            bottom: parent.bottom
-            left: parent.left
-        }
-        onClicked: SurfaceController.closeNotificationPanel()
-    }
-
-    MouseArea {
-        anchors {
-            top: panelSurface.top
-            right: panelSurface.left
-            bottom: panelSurface.bottom
-            left: parent.left
-        }
-        onClicked: SurfaceController.closeNotificationPanel()
-    }
-
-    MouseArea {
-        anchors {
-            top: panelSurface.top
-            right: parent.right
-            bottom: panelSurface.bottom
-            left: panelSurface.right
-        }
-        onClicked: SurfaceController.closeNotificationPanel()
-    }
-
-    M3Panel {
+    M3Surface {
         id: panelSurface
 
         anchors {
@@ -90,21 +74,11 @@ PanelWindow {
             topMargin: 6
             rightMargin: 6
         }
-        width: root.targetPanelWidth
-        // Notification cards own the resize animation; follow their height directly.
+        width: root.panelWidth
+        // Only this inner item follows the bounded content height.
         height: root.targetPanelHeight
         radius: Metrics.radiusLg
         color: Theme.scheme.surfaceContainer
-        clip: true
-
-        Behavior on width {
-            NumberAnimation {
-                duration: Motion.durationMedium
-                easing.type: Motion.easingEmphasized
-                easing.bezierCurve: Motion.emphasizedCurve
-            }
-        }
-
         ColumnLayout {
             id: panelContent
 
@@ -115,102 +89,90 @@ PanelWindow {
             spacing: Metrics.spacingSm
 
             Rectangle {
-                id: notificationGroup
-
-                readonly property real contentHeight: NotificationService.hasNonTransientNotifications ? notificationList.implicitHeight : emptyState.implicitHeight + Metrics.spacingLg * 2
-
-                implicitHeight: Math.min(contentHeight, Math.max(0, root.maximumPanelHeight - footer.implicitHeight - Metrics.spacingMd * 2 - panelContent.spacing))
                 Layout.fillWidth: true
-                Layout.fillHeight: true
                 Layout.minimumHeight: 0
-                Layout.preferredHeight: implicitHeight
+                Layout.preferredHeight: root.contentViewportHeight
                 radius: Metrics.radiusMd
                 color: Theme.scheme.surfaceContainerHighest
                 clip: true
 
-                Flickable {
+                ListView {
                     id: notificationViewport
 
                     anchors.fill: parent
                     visible: NotificationService.hasNonTransientNotifications
-                    contentWidth: width
-                    contentHeight: notificationList.implicitHeight
+                    model: NotificationController.notificationGroups
+                    reuseItems: true
+                    cacheBuffer: 128
                     boundsBehavior: Flickable.StopAtBounds
-                    flickableDirection: Flickable.VerticalFlick
+                    delegate: SwipeToDismiss {
+                        id: notificationDelegate
 
-                    Column {
-                        id: notificationList
+                        required property int index
+                        required property var modelData
+                        readonly property var notificationGroupData: modelData
+                        readonly property bool grouped: notificationDelegate.notificationGroupData.notifications.length > 1
+                        readonly property Item loadedNotification: notificationLoader.item
 
-                        width: notificationViewport.width
+                        width: ListView.view.width
+                        height: notificationDelegate.loadedNotification
+                            ? notificationDelegate.loadedNotification.implicitHeight
+                            : 0
+                        swipeEnabled: true
+                        showSeparator: notificationDelegate.index < NotificationController.notificationGroups.length - 1
+                        ListView.onPooled: notificationDelegate.resetPosition()
+                        ListView.onReused: notificationDelegate.resetPosition()
+                        onDismissed: {
+                            if (notificationDelegate.grouped)
+                                NotificationService.dismissMany(notificationDelegate.notificationGroupData.notifications);
+                            else
+                                NotificationService.dismiss(notificationDelegate.notificationGroupData.notifications[0]);
+                        }
 
-                        Repeater {
-                            model: root.open ? NotificationController.notificationGroups.length : 0
+                        Loader {
+                            id: notificationLoader
+                            anchors {
+                                left: parent.left
+                                right: parent.right
+                                top: parent.top
+                            }
+                            asynchronous: false
+                            sourceComponent: notificationDelegate.grouped
+                                ? groupedNotificationComponent
+                                : singleNotificationComponent
+                        }
 
-                            delegate: SwipeToDismiss {
-                                id: notificationDelegate
+                        Component {
+                            id: groupedNotificationComponent
 
-                                required property int index
-                                readonly property var notificationGroupData: NotificationController.notificationGroups[index]
-                                readonly property bool grouped: notificationDelegate.notificationGroupData.notifications.length > 1
-                                readonly property Item loadedNotification: notificationLoader.item
-
-                                width: notificationList.width
-                                implicitHeight: notificationDelegate.loadedNotification ? notificationDelegate.loadedNotification.implicitHeight : 0
-                                swipeEnabled: true
+                            NotificationGroup {
+                                group: notificationDelegate.notificationGroupData
+                                toggleContainerColor: Theme.scheme.surfaceVariant
+                                expanded: NotificationController.isGroupExpanded(group)
                                 showSeparator: notificationDelegate.index < NotificationController.notificationGroups.length - 1
-                                onDismissed: {
-                                    if (notificationDelegate.grouped)
-                                        NotificationService.dismissMany(notificationDelegate.notificationGroupData.notifications);
-                                    else
-                                        NotificationService.dismiss(notificationDelegate.notificationGroupData.notifications[0]);
-                                }
+                                drawSeparator: false
+                                memberSwipeEnabled: expanded
+                                dismissMember: notification => NotificationService.dismiss(notification)
+                                onExpansionRequested: NotificationController.toggleGroupExpanded(group)
+                            }
+                        }
 
-                                Loader {
-                                    id: notificationLoader
+                        Component {
+                            id: singleNotificationComponent
 
-                                    anchors {
-                                        left: parent.left
-                                        right: parent.right
-                                        top: parent.top
-                                    }
-                                    sourceComponent: notificationDelegate.grouped ? groupedNotificationComponent : singleNotificationComponent
-                                }
-
-                                Component {
-                                    id: groupedNotificationComponent
-
-                                    NotificationGroup {
-                                        group: notificationDelegate.notificationGroupData
-                                        toggleContainerColor: Theme.scheme.surfaceVariant
-                                        expanded: NotificationController.isGroupExpanded(group)
-                                        showSeparator: notificationDelegate.index < NotificationController.notificationGroups.length - 1
-                                        drawSeparator: false
-                                        memberSwipeEnabled: expanded
-                                        dismissMember: notification => NotificationService.dismiss(notification)
-                                        onExpansionRequested: NotificationController.toggleGroupExpanded(group)
-                                    }
-                                }
-
-                                Component {
-                                    id: singleNotificationComponent
-
-                                    NotificationItem {
-                                        notification: notificationDelegate.notificationGroupData.notifications[0]
-                                        toggleContainerColor: Theme.scheme.surfaceVariant
-                                        expanded: NotificationController.isExpanded(notification)
-                                        relativeTime: NotificationController.relativeTime(notification)
-                                        showSeparator: notificationDelegate.index < NotificationController.notificationGroups.length - 1
-                                        drawSeparator: false
-                                        onExpansionRequested: NotificationController.toggleExpanded(notification)
-                                    }
-                                }
+                            NotificationItem {
+                                notification: notificationDelegate.notificationGroupData.notifications[0]
+                                toggleContainerColor: Theme.scheme.surfaceVariant
+                                expanded: NotificationController.isExpanded(notification)
+                                relativeTime: NotificationController.relativeTime(notification)
+                                showSeparator: notificationDelegate.index < NotificationController.notificationGroups.length - 1
+                                drawSeparator: false
+                                onExpansionRequested: NotificationController.toggleExpanded(notification)
                             }
                         }
                     }
 
-                    ScrollBar.vertical: M3ScrollBar {
-                        policy: notificationList.implicitHeight > notificationViewport.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-                    }
+                    ScrollBar.vertical: M3ScrollBar {}
                 }
 
                 Column {

@@ -10,8 +10,6 @@ import qs.theme
 Control {
     id: root
 
-    clip: true
-
     required property var group
     property bool expanded: false
     property bool showSeparator: true
@@ -22,31 +20,12 @@ Control {
     property bool memberSwipeEnabled: false
     property var dismissMember: notification => {}
     property color toggleContainerColor: Theme.scheme.surfaceContainerHighest
-    property bool animatingGroupExpansion: false
 
     readonly property var latestNotification: root.group ? root.group.latestNotification : null
     readonly property int notificationCount: root.group && root.group.notifications ? root.group.notifications.length : 0
     readonly property string appIconSource: root.group ? String(root.group.appIconSource || "") : ""
 
     signal expansionRequested
-
-    onExpandedChanged: {
-        root.animatingGroupExpansion = true;
-    }
-
-    Behavior on implicitHeight {
-        enabled: root.animatingGroupExpansion
-
-        NumberAnimation {
-            duration: Motion.durationMedium
-            easing.type: Motion.easingEmphasized
-            easing.bezierCurve: Motion.emphasizedCurve
-            onRunningChanged: {
-                if (!running)
-                    root.animatingGroupExpansion = false;
-            }
-        }
-    }
 
     leftPadding: Metrics.spacingLg
     rightPadding: Metrics.spacingLg
@@ -200,11 +179,13 @@ Control {
                     spacing: Metrics.spacingSm
 
                     Repeater {
-                        model: root.visible && !root.expanded ? Math.min(root.notificationCount, root.previewLimit) : 0
+                        model: root.group && root.group.notifications
+                            ? root.group.notifications.slice(0, root.previewLimit)
+                            : []
 
                         delegate: M3Text {
-                            required property int index
-                            readonly property var previewNotification: root.group.notifications[index]
+                            required property var modelData
+                            readonly property var previewNotification: modelData
 
                             Layout.fillWidth: true
                             text: NotificationController.previewText(previewNotification)
@@ -218,46 +199,58 @@ Control {
                 }
             }
 
-            ColumnLayout {
-                visible: root.expanded
+            Loader {
+                id: expandedContentLoader
+
+                active: root.expanded
+                visible: active
+                asynchronous: false
                 Layout.fillWidth: true
-                spacing: Metrics.spacingSm
+                sourceComponent: expandedContentComponent
+            }
+        }
+    }
 
-                Repeater {
-                    model: root.visible && root.expanded ? root.notificationCount : 0
+    Component {
+        id: expandedContentComponent
 
-                    delegate: SwipeToDismiss {
-                        required property int index
-                        readonly property var memberNotification: root.group.notifications[index]
+        ColumnLayout {
+            spacing: Metrics.spacingSm
 
-                        Layout.fillWidth: true
-                        implicitHeight: memberItem.implicitHeight
-                        swipeEnabled: root.memberSwipeEnabled
-                        showSeparator: index < root.notificationCount - 1
-                        onDismissed: {
-                            if (root && typeof root.dismissMember === "function" && memberNotification)
-                                root.dismissMember(memberNotification);
+            Repeater {
+                model: root.group && root.group.notifications ? root.group.notifications : []
+
+                delegate: SwipeToDismiss {
+                    required property int index
+                    required property var modelData
+                    readonly property var memberNotification: modelData
+
+                    Layout.fillWidth: true
+                    implicitHeight: memberItem.implicitHeight
+                    swipeEnabled: root.memberSwipeEnabled
+                    showSeparator: index < root.notificationCount - 1
+                    onDismissed: {
+                        if (memberNotification)
+                            root.dismissMember(memberNotification);
+                    }
+
+                    NotificationItem {
+                        id: memberItem
+
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            top: parent.top
                         }
-
-                        NotificationItem {
-                            id: memberItem
-
-                            anchors {
-                                left: parent.left
-                                right: parent.right
-                                top: parent.top
-                            }
-                            notification: memberNotification
-                            grouped: true
-                            toggleContainerColor: root.toggleContainerColor
-                            expanded: Boolean(root && typeof root.isMemberExpanded === "function" && notification && root.isMemberExpanded(notification))
-                            relativeTime: NotificationController.relativeTime(notification)
-                            showSeparator: index < root.notificationCount - 1
-                            drawSeparator: false
-                            onExpansionRequested: {
-                                if (root && typeof root.toggleMemberExpanded === "function")
-                                    root.toggleMemberExpanded(notification);
-                            }
+                        notification: memberNotification
+                        grouped: true
+                        toggleContainerColor: root.toggleContainerColor
+                        expanded: Boolean(notification && root.isMemberExpanded(notification))
+                        relativeTime: NotificationController.relativeTime(notification)
+                        showSeparator: index < root.notificationCount - 1
+                        drawSeparator: false
+                        onExpansionRequested: {
+                            root.toggleMemberExpanded(notification);
                         }
                     }
                 }
