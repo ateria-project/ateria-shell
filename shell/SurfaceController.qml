@@ -12,7 +12,8 @@ Singleton {
         NotificationPanel = 3,
         Launcher = 4,
         Clipboard = 5,
-        Settings = 6
+        Settings = 6,
+        WallpaperSwitcher = 7
     }
 
     property int activeSurface: SurfaceController.None
@@ -25,12 +26,14 @@ Singleton {
     property var launcherScreen: null
     property var clipboardScreen: null
     property var settingsScreen: null
+    property var wallpaperSwitcherScreen: null
     readonly property bool quickSettingsOpen: root.activeSurface === SurfaceController.QuickSettings
     readonly property bool calendarOpen: root.activeSurface === SurfaceController.Calendar
     readonly property bool notificationPanelOpen: root.activeSurface === SurfaceController.NotificationPanel
     readonly property bool launcherOpen: root.activeSurface === SurfaceController.Launcher
     readonly property bool clipboardOpen: root.activeSurface === SurfaceController.Clipboard
     readonly property bool settingsOpen: root.activeSurface === SurfaceController.Settings
+    readonly property bool wallpaperSwitcherOpen: root.activeSurface === SurfaceController.WallpaperSwitcher
 
     function preferredScreen(outputName: string): var {
         const screens = Quickshell.screens;
@@ -58,6 +61,9 @@ Singleton {
             break;
         case SurfaceController.Settings:
             root.settingsScreen = requestedScreen;
+            break;
+        case SurfaceController.WallpaperSwitcher:
+            root.wallpaperSwitcherScreen = requestedScreen;
             break;
         }
         root.activeScreen = requestedScreen;
@@ -146,6 +152,19 @@ Singleton {
 
     function closeSettings() {
         if (root.settingsOpen)
+            root.closeSurface();
+    }
+
+    function toggleWallpaperSwitcher(screen) {
+        root.toggleSurface(SurfaceController.WallpaperSwitcher, screen);
+    }
+
+    function openWallpaperSwitcher(screen) {
+        root.openSurface(SurfaceController.WallpaperSwitcher, screen);
+    }
+
+    function closeWallpaperSwitcher() {
+        if (root.wallpaperSwitcherOpen)
             root.closeSurface();
     }
 }

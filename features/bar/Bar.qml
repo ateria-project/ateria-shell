@@ -55,6 +55,11 @@ PanelWindow {
             screen: window.screen
         }
 
+        WallpaperSwitcherButton {
+            id: wallpaperSwitcherBtn
+            screen: window.screen
+        }
+
         Loader {
             id: taskArea
 

@@ -24,6 +24,10 @@ Singleton {
         return decodeURIComponent(value.replace(/^file:\/\//, ""));
     }
 
+    function isVideoPath(path): bool {
+        return /\.(mp4|webm|mkv|gif)$/i.test(path);
+    }
+
     function request(source) {
         const path = root.localPath(source);
         if (path.length === 0 || (path === root.requestedPath && (generateProcess.running || requestTimer.running)))
@@ -38,15 +42,20 @@ Singleton {
             return;
 
         root.inFlightPath = root.requestedPath;
+        if (root.isVideoPath(root.inFlightPath)) {
+            generateProcess.exec([
+                "bash",
+                "-c",
+                "n=\"$(basename \"$1\")\"; t=\"/tmp/ateria_thumbs/$n.jpg\"; if [ ! -f \"$t\" ]; then mkdir -p /tmp/ateria_thumbs && nice -n 19 ffmpeg -loglevel error -y -threads 1 -i \"$1\" -map 0:v:0 -frames:v 1 -vf 'scale=640:-2' -q:v 4 \"$t\" </dev/null; fi; matugen image \"$t\" --source-color-index 0 --json hex --quiet",
+                "_",
+                root.inFlightPath
+            ]);
+            return;
+        }
+
         generateProcess.exec([
-            "matugen",
-            "image",
-            root.inFlightPath,
-            "--source-color-index",
-            "0",
-            "--json",
-            "hex",
-            "--quiet"
+            "matugen", "image", root.inFlightPath,
+            "--source-color-index", "0", "--json", "hex", "--quiet"
         ]);
     }
 
@@ -80,7 +89,9 @@ Singleton {
     Timer {
         id: requestTimer
 
-        interval: 100
+        // Video startup and the full-screen transition are latency-sensitive.
+        // Theme extraction can wait until that work has completed.
+        interval: root.isVideoPath(root.requestedPath) ? 2000 : 100
         repeat: false
         onTriggered: root.startGeneration()
     }

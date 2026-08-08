@@ -98,6 +98,7 @@ Singleton {
     })
     // Power profiles
     readonly property int powerProfile: PowerProfiles.profile
+    readonly property bool powerSaver: root.powerProfile === PowerProfile.PowerSaver
     readonly property bool hasPerformanceProfile: PowerProfiles.hasPerformanceProfile
     readonly property var powerProfileHolds: PowerProfiles.holds
     readonly property int degradationReason: PowerProfiles.degradationReason

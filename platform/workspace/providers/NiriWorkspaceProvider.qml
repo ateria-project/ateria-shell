@@ -61,7 +61,8 @@ Singleton {
                 "focused": false,
                 "floating": false,
                 "urgent": false,
-                "layoutPosition": null
+                "layoutPosition": null,
+                "tileSize": null
             };
 
         const layout = windowData.layout ?? {};
@@ -74,7 +75,8 @@ Singleton {
             "focused": Boolean(windowData.is_focused),
             "floating": Boolean(windowData.is_floating),
             "urgent": Boolean(windowData.is_urgent),
-            "layoutPosition": layout.pos_in_scrolling_layout ?? null
+            "layoutPosition": layout.pos_in_scrolling_layout ?? null,
+            "tileSize": layout.tile_size ?? null
         };
     }
 
@@ -132,7 +134,10 @@ Singleton {
         case "WindowLayoutsChanged":
             root.windowLayoutsPatched((payload.changes ?? []).map(change => {
                 const layout = change[1] ?? {};
-                return [Number(change[0]), layout.pos_in_scrolling_layout ?? null];
+                return [Number(change[0]), {
+                    "layoutPosition": layout.pos_in_scrolling_layout ?? null,
+                    "tileSize": layout.tile_size ?? null
+                }];
             }));
             return;
         default:

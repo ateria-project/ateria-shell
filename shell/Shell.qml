@@ -69,6 +69,10 @@ Scope {
         id: settingsPanel
     }
 
+    WallpaperSwitcherPanel {
+        id: wallpaperSwitcherPanel
+    }
+
     NotificationOverlay {
         id: notificationOverlay
     }

@@ -156,7 +156,7 @@ Singleton {
             root.windows = nextWindows;
     }
 
-    function layoutPositionsEqual(left, right): bool {
+    function vectorsEqual(left, right): bool {
         if (left === right)
             return true;
         if (left === null || right === null)
@@ -173,7 +173,8 @@ Singleton {
             && left.focused === right.focused
             && left.floating === right.floating
             && left.urgent === right.urgent
-            && root.layoutPositionsEqual(left.layoutPosition, right.layoutPosition));
+            && root.vectorsEqual(left.layoutPosition, right.layoutPosition)
+            && root.vectorsEqual(left.tileSize, right.tileSize));
     }
 
     function patchWindowLayouts(changes) {
@@ -187,13 +188,17 @@ Singleton {
             if (index === undefined)
                 continue;
             const windowData = root.windows[index];
-            const layoutPosition = change[1] ?? null;
-            if (root.layoutPositionsEqual(windowData.layoutPosition, layoutPosition))
+            const layout = change[1] ?? {};
+            const layoutPosition = layout.layoutPosition ?? null;
+            const tileSize = layout.tileSize ?? null;
+            if (root.vectorsEqual(windowData.layoutPosition, layoutPosition)
+                    && root.vectorsEqual(windowData.tileSize, tileSize))
                 continue;
             if (nextWindows === null)
                 nextWindows = root.windows.slice();
             nextWindows[index] = Object.assign({}, windowData, {
-                "layoutPosition": layoutPosition
+                "layoutPosition": layoutPosition,
+                "tileSize": tileSize
             });
         }
         if (nextWindows !== null)
