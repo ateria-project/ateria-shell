@@ -14,21 +14,52 @@ Singleton {
         Clipboard = 5
     }
 
-    property int activeSurface: 0
+    property int activeSurface: SurfaceController.None
     property var activeScreen: null
-    readonly property bool quickSettingsOpen: root.activeSurface === 1
-    readonly property bool calendarOpen: root.activeSurface === 2
-    readonly property bool notificationPanelOpen: root.activeSurface === 3
-    readonly property bool launcherOpen: root.activeSurface === 4
-    readonly property bool clipboardOpen: root.activeSurface === 5
+    // A surface keeps its own screen assignment. Changing the active surface
+    // must not move a still-mounted outgoing surface to the incoming screen.
+    property var quickSettingsScreen: null
+    property var calendarScreen: null
+    property var notificationPanelScreen: null
+    property var launcherScreen: null
+    property var clipboardScreen: null
+    readonly property bool quickSettingsOpen: root.activeSurface === SurfaceController.QuickSettings
+    readonly property bool calendarOpen: root.activeSurface === SurfaceController.Calendar
+    readonly property bool notificationPanelOpen: root.activeSurface === SurfaceController.NotificationPanel
+    readonly property bool launcherOpen: root.activeSurface === SurfaceController.Launcher
+    readonly property bool clipboardOpen: root.activeSurface === SurfaceController.Clipboard
+
+    function preferredScreen(outputName: string): var {
+        const screens = Quickshell.screens;
+        const matchingScreen = screens.find(screen => screen.name === outputName);
+        return matchingScreen ?? root.activeScreen ?? (screens.length > 0 ? screens[0] : null);
+    }
 
     function openSurface(surface: int, screen) {
-        root.activeScreen = screen ?? null;
+        const requestedScreen = screen ?? null;
+        switch (surface) {
+        case SurfaceController.QuickSettings:
+            root.quickSettingsScreen = requestedScreen;
+            break;
+        case SurfaceController.Calendar:
+            root.calendarScreen = requestedScreen;
+            break;
+        case SurfaceController.NotificationPanel:
+            root.notificationPanelScreen = requestedScreen;
+            break;
+        case SurfaceController.Launcher:
+            root.launcherScreen = requestedScreen;
+            break;
+        case SurfaceController.Clipboard:
+            root.clipboardScreen = requestedScreen;
+            break;
+        }
+        root.activeScreen = requestedScreen;
         root.activeSurface = surface;
     }
 
     function closeSurface() {
-        root.activeSurface = 0;
+        root.activeSurface = SurfaceController.None;
     }
 
     function toggleSurface(surface: int, screen) {
@@ -38,78 +69,64 @@ Singleton {
             root.openSurface(surface, screen);
     }
 
-    // Start quick settings
     function toggleQuickSettings(screen) {
-        root.toggleSurface(1, screen);
+        root.toggleSurface(SurfaceController.QuickSettings, screen);
     }
 
     function openQuickSettings(screen) {
-        root.openSurface(1, screen);
+        root.openSurface(SurfaceController.QuickSettings, screen);
     }
 
     function closeQuickSettings() {
         if (root.quickSettingsOpen)
             root.closeSurface();
     }
-    // End quick settings
-
-    // Start calendar
     function toggleCalendar(screen) {
-        root.toggleSurface(2, screen);
+        root.toggleSurface(SurfaceController.Calendar, screen);
     }
 
     function openCalendar(screen) {
-        root.openSurface(2, screen);
+        root.openSurface(SurfaceController.Calendar, screen);
     }
 
     function closeCalendar() {
         if (root.calendarOpen)
             root.closeSurface();
     }
-    // End calendar
-
-    // Start notifications
     function toggleNotificationPanel(screen) {
-        root.toggleSurface(3, screen);
+        root.toggleSurface(SurfaceController.NotificationPanel, screen);
     }
 
     function openNotificationPanel(screen) {
-        root.openSurface(3, screen);
+        root.openSurface(SurfaceController.NotificationPanel, screen);
     }
 
     function closeNotificationPanel() {
         if (root.notificationPanelOpen)
             root.closeSurface();
     }
-    // End notifications
-
-    // Start launcher
     function toggleLauncher(screen) {
-        root.toggleSurface(4, screen);
+        root.toggleSurface(SurfaceController.Launcher, screen);
     }
 
     function openLauncher(screen) {
-        root.openSurface(4, screen);
+        root.openSurface(SurfaceController.Launcher, screen);
     }
 
     function closeLauncher() {
         if (root.launcherOpen)
             root.closeSurface();
     }
-    // End launcher
-
-    // Start clipboard
     function toggleClipboard(screen) {
-        root.toggleSurface(5, screen);
+        root.toggleSurface(SurfaceController.Clipboard, screen);
     }
 
     function openClipboard(screen) {
-        root.openSurface(5, screen);
+        root.openSurface(SurfaceController.Clipboard, screen);
     }
 
     function closeClipboard() {
         if (root.clipboardOpen)
             root.closeSurface();
     }
-    // End clipboard
 }

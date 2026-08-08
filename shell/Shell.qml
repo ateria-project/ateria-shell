@@ -45,20 +45,14 @@ Scope {
 
     QuickSettingsPanel {
         id: quickSettingsPanel
-
-        screen: SurfaceController.activeScreen
     }
 
     CalendarPanel {
         id: calendarPanel
-
-        screen: SurfaceController.activeScreen
     }
 
     NotificationPanel {
         id: notificationPanel
-
-        screen: SurfaceController.activeScreen
     }
 
     LauncherPanel {
