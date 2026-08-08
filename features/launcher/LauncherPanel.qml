@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import qs.components
@@ -14,7 +13,7 @@ import qs.theme
 TransientPanelWindow {
     id: root
 
-    property real launcherWidth: 600
+    property real launcherWidth: 500
     property int maximumVisibleResults: 6
     property int resultRowHeight: 56
     property real lastPointerSceneX: NaN
@@ -23,11 +22,12 @@ TransientPanelWindow {
     open: SurfaceController.launcherOpen
     targetScreen: SurfaceController.launcherScreen
     fallbackScreen: SurfaceController.preferredScreen(WorkspaceService.focusedOutputName)
+    transitionsEnabled: true
     color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.exclusiveZone: 0
     WlrLayershell.keyboardFocus: root.interactive ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     WlrLayershell.namespace: "ateria-shell-launcher"
+    onTransitionRequested: (entering, generation) => panelTransition.transition(entering, generation)
 
     anchors {
         top: true
@@ -121,7 +121,7 @@ TransientPanelWindow {
     onFullyClosed: searchField.clear()
 
     DismissibleOverlay {
-        excludedItem: panelSurface
+        excludedItem: panelSurface.presentationItem
         enabled: root.interactive
         onDismissed: root.closeLauncher()
     }
@@ -129,10 +129,15 @@ TransientPanelWindow {
     M3Surface {
         id: panelSurface
 
-        anchors.centerIn: parent
+        anchors {
+            top: parent.top
+            left: parent.left
+            topMargin: 6
+            leftMargin: 6
+        }
         width: Math.min(root.launcherWidth, Math.max(0, root.width - Metrics.spacingXl * 2))
         height: launcherContent.implicitHeight + Metrics.spacingLg * 2
-        radius: Metrics.radiusXl
+        radius: 16
         HoverHandler {
             id: pointerSelectionHandler
 
@@ -240,5 +245,13 @@ TransientPanelWindow {
                 }
             }
         }
+    }
+
+    SlideTransition {
+        id: panelTransition
+
+        target: panelSurface.presentationItem
+        hiddenOffsetY: -(panelSurface.height + panelSurface.anchors.topMargin + 5)
+        onTransitionFinished: generation => root.completeTransition(generation)
     }
 }
