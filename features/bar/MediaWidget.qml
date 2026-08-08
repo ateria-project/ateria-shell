@@ -15,8 +15,6 @@ Rectangle {
     readonly property int nextButtonWidth: 24
     readonly property int leftContentMargin: 3
     readonly property int rightContentMargin: 2
-    readonly property int marqueeStartDelay: 1000
-    readonly property int marqueeEndHold: 800
     readonly property real marqueeVelocity: 60
     readonly property real fixedContentWidth: root.leftContentMargin + root.rightContentMargin + root.artworkSize + root.playPauseButtonWidth + root.nextButtonWidth + Metrics.spacingXs + Metrics.spacingSm * 2
     readonly property real maximumTextWidth: root.maximumWidth - root.fixedContentWidth
@@ -26,13 +24,8 @@ Rectangle {
 
     property bool inactiveHidden: false
 
-    Timer {
-        id: inactivityTimer
-
-        interval: MediaSettings.inactiveTimeout * 1000
-        repeat: false
-        onTriggered: root.inactiveHidden = true
-    }
+    readonly property bool isActive: MprisService.available && (!MediaSettings.hideWhenInactive || !root.inactiveHidden)
+    readonly property real activeImplicitWidth: root.fixedContentWidth + root.fittedTextWidth
 
     function updateInactivityState() {
         if (!MediaSettings.hideWhenInactive || !MprisService.available) {
@@ -40,67 +33,33 @@ Rectangle {
             root.inactiveHidden = false;
             return;
         }
-
         if (root.playing) {
             inactivityTimer.stop();
             root.inactiveHidden = false;
             return;
         }
-
         root.inactiveHidden = false;
         inactivityTimer.restart();
     }
 
-    function restartMarquee() {
-        marqueeAnimation.stop();
-        hoverAnimation.stop();
-        titleText.x = 0;
-
-        if (root.visible && titleViewport.overflowDistance > 0)
-            marqueeAnimation.restart();
-    }
-
-    function startHoverMarquee(hovered: bool) {
-        hoverAnimation.stop();
-        if (titleViewport.overflowDistance <= 0) {
-            titleText.x = 0;
-            return;
-        }
-
-        hoverAnimation.to = hovered ? -titleViewport.overflowDistance : 0;
-        hoverAnimation.restart();
-    }
-
-    function updateHoverMarquee(hovered: bool) {
-        if (!marqueeAnimation.running)
-            root.startHoverMarquee(hovered);
-    }
-
-    readonly property bool isActive: MprisService.available && (!MediaSettings.hideWhenInactive || !root.inactiveHidden)
-    readonly property real activeImplicitWidth: root.fixedContentWidth + root.fittedTextWidth
-
-    visible: root.isActive || root.opacity > 0.01 || root.implicitWidth > 0.01
+    visible: root.isActive
     implicitWidth: root.isActive ? root.activeImplicitWidth : 0
     implicitHeight: 28
     radius: Metrics.radiusFull
     color: Theme.scheme.surfaceContainer
-    opacity: root.isActive ? 1 : 0
+    opacity: 1
     clip: true
 
-    onMediaKeyChanged: {
-        artworkAnimator.restart();
-        root.restartMarquee();
-        root.updateInactivityState();
-    }
-    onPlayingChanged: {
-        if (root.playing)
-            root.restartMarquee();
-        root.updateInactivityState();
-    }
-    onVisibleChanged: root.restartMarquee()
-    Component.onCompleted: {
-        root.restartMarquee();
-        root.updateInactivityState();
+    onMediaKeyChanged: root.updateInactivityState()
+    onPlayingChanged: root.updateInactivityState()
+    Component.onCompleted: root.updateInactivityState()
+
+    Timer {
+        id: inactivityTimer
+
+        interval: MediaSettings.inactiveTimeout * 1000
+        repeat: false
+        onTriggered: root.inactiveHidden = true
     }
 
     Connections {
@@ -125,8 +84,6 @@ Rectangle {
 
     HoverHandler {
         id: mediaHoverHandler
-
-        onHoveredChanged: root.updateHoverMarquee(hovered)
     }
 
     RowLayout {
@@ -148,19 +105,7 @@ Rectangle {
             contentUnderBorder: true
 
             Item {
-                id: artworkContainer
                 anchors.fill: parent
-
-                RotationAnimator {
-                    id: artworkAnimator
-                    target: artworkContainer
-                    from: 0
-                    to: 360
-                    duration: 15000
-                    loops: Animation.Infinite
-                    running: true
-                    paused: !root.playing || !root.visible
-                }
 
                 M3Icon {
                     anchors.centerIn: parent
@@ -186,6 +131,8 @@ Rectangle {
         Item {
             id: titleViewport
 
+            readonly property real overflowDistance: Math.max(0, titleText.implicitWidth - titleViewport.width)
+
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             Layout.preferredWidth: root.fittedTextWidth
@@ -194,12 +141,10 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
             clip: true
 
-            readonly property real overflowDistance: Math.max(0, titleText.implicitWidth - titleViewport.width)
-
             M3Text {
                 id: titleText
 
-                x: 0
+                x: root.hovered ? -titleViewport.overflowDistance : 0
                 anchors.verticalCenter: parent.verticalCenter
                 width: implicitWidth
                 text: MprisService.displayText
@@ -207,6 +152,13 @@ Rectangle {
                 color: Theme.scheme.onSurface
                 font.pixelSize: 12
                 font.weight: Font.Medium
+
+                Behavior on x {
+                    SmoothedAnimation {
+                        velocity: root.marqueeVelocity
+                        maximumEasingTime: Motion.durationLong
+                    }
+                }
             }
         }
 
@@ -229,6 +181,7 @@ Rectangle {
                 Accessible.name: MprisService.isPlaying ? qsTr("Pause") : qsTr("Play")
                 onClicked: MprisService.togglePlayback()
             }
+
             M3Button {
                 Layout.preferredWidth: root.nextButtonWidth
                 Layout.preferredHeight: 24
@@ -246,65 +199,6 @@ Rectangle {
                 Accessible.name: qsTr("Next track")
                 onClicked: MprisService.nextTrack()
             }
-        }
-    }
-
-    SequentialAnimation {
-        id: marqueeAnimation
-
-        PauseAnimation {
-            duration: root.marqueeStartDelay
-        }
-
-        SmoothedAnimation {
-            target: titleText
-            property: "x"
-            to: -titleViewport.overflowDistance
-            velocity: root.marqueeVelocity
-            maximumEasingTime: Motion.durationLong
-        }
-
-        PauseAnimation {
-            duration: root.marqueeEndHold
-        }
-
-        SmoothedAnimation {
-            target: titleText
-            property: "x"
-            to: 0
-            velocity: root.marqueeVelocity
-            maximumEasingTime: Motion.durationLong
-        }
-
-        onFinished: {
-            if (root.hovered)
-                root.startHoverMarquee(true);
-        }
-    }
-
-    SmoothedAnimation {
-        id: hoverAnimation
-
-        target: titleText
-        property: "x"
-        to: 0
-        velocity: root.marqueeVelocity
-        maximumEasingTime: Motion.durationLong
-    }
-
-    Behavior on implicitWidth {
-        NumberAnimation {
-            duration: Motion.durationLong
-            easing.type: Motion.easingEmphasized
-            easing.bezierCurve: Motion.emphasizedCurve
-        }
-    }
-
-    Behavior on opacity {
-        NumberAnimation {
-            duration: Motion.durationLong
-            easing.type: Motion.easingEmphasized
-            easing.bezierCurve: Motion.emphasizedCurve
         }
     }
 }
