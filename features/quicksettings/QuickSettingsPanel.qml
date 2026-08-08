@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import qs.components
 import qs.features.quicksettings.pages
 import qs.shell
@@ -10,6 +11,7 @@ TransientPanelWindow {
 
     property real panelWidth: 396
     property real maximumPanelHeight: 450
+    property real _pageTravelDistance: panelWidth
 
     open: SurfaceController.quickSettingsOpen
     targetScreen: SurfaceController.quickSettingsScreen
@@ -56,12 +58,16 @@ TransientPanelWindow {
 
         onPageRequested: page => {
             const component = root.componentForPage(page);
-            if (component)
-                navigationStack.push(component, {}, StackView.Immediate);
+            if (component && !navigationStack.busy) {
+                root._pageTravelDistance = panelViewport.width;
+                navigationStack.push(component, {}, StackView.PushTransition);
+            }
         }
         onBackRequested: {
-            if (navigationStack.depth > 1)
-                navigationStack.pop(null, StackView.Immediate);
+            if (navigationStack.depth > 1 && !navigationStack.busy) {
+                root._pageTravelDistance = panelViewport.width;
+                navigationStack.pop(null, StackView.PopTransition);
+            }
         }
         onResetRequested: {
             if (navigationStack.depth > 1)
@@ -91,7 +97,23 @@ TransientPanelWindow {
         }
         width: root.targetPanelWidth
         height: root.targetPanelHeight
-        clip: navigationStack.busy
+        readonly property bool roundedClipActive: navigationStack.busy
+            || panelWidthAnimation.running
+            || panelHeightAnimation.running
+
+        layer.enabled: panelViewport.roundedClipActive
+        layer.effect: MultiEffect {
+            maskEnabled: true
+            maskSource: panelMask
+        }
+
+        Behavior on width {
+            PanelResizeAnimation { id: panelWidthAnimation }
+        }
+
+        Behavior on height {
+            PanelResizeAnimation { id: panelHeightAnimation }
+        }
 
         PresentationLayer {
             id: panelPresentation
@@ -104,14 +126,35 @@ TransientPanelWindow {
                 anchors.fill: parent
                 initialItem: mainPageComponent
 
-                // Navigation and lifecycle are now owned by StackView. Motion
-                // can be added here later without changing page geometry.
-                pushEnter: NoTransition {}
-                pushExit: NoTransition {}
-                popEnter: NoTransition {}
-                popExit: NoTransition {}
+                pushEnter: PageTransition {
+                    fromX: root._pageTravelDistance
+                    toX: 0
+                }
+                pushExit: PageTransition {
+                    fromX: 0
+                    toX: -root._pageTravelDistance
+                }
+                popEnter: PageTransition {
+                    fromX: -root._pageTravelDistance
+                    toX: 0
+                }
+                popExit: PageTransition {
+                    fromX: 0
+                    toX: root._pageTravelDistance
+                }
             }
         }
+    }
+
+    Rectangle {
+        id: panelMask
+
+        anchors.fill: panelViewport
+        radius: 16
+        color: "black"
+        antialiasing: true
+        visible: false
+        layer.enabled: panelViewport.roundedClipActive
     }
 
     SlideTransition {
@@ -122,8 +165,26 @@ TransientPanelWindow {
         onTransitionFinished: generation => root.completeTransition(generation)
     }
 
-    component NoTransition: Transition {
-        NumberAnimation { duration: 0 }
+    component PageTransition: Transition {
+        id: pageTransition
+
+        required property real fromX
+        required property real toX
+
+        NumberAnimation {
+            property: "x"
+            from: pageTransition.fromX
+            to: pageTransition.toX
+            duration: Motion.durationPageTransition
+            easing.type: Motion.easingExpressiveSpatial
+            easing.bezierCurve: Motion.expressiveGentleSpatialCurve
+        }
+    }
+
+    component PanelResizeAnimation: NumberAnimation {
+        duration: Motion.durationPageTransition
+        easing.type: Motion.easingExpressiveSpatial
+        easing.bezierCurve: Motion.expressiveGentleSpatialCurve
     }
 
     Component {
