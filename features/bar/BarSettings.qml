@@ -21,6 +21,14 @@ QtObject {
                 group: "bar",
                 order: 15
             },
+            "showWorkspaceNumbersOnHover": {
+                type: "bool",
+                defaultValue: true,
+                label: qsTr("Show Workspace Numbers on Hover"),
+                description: qsTr("Shows all workspace numbers while hovering over the workspace switcher."),
+                group: "bar",
+                order: 16
+            },
             "useAppIcons": {
                 type: "bool",
                 defaultValue: true,
@@ -33,6 +41,7 @@ QtObject {
 
     readonly property bool combineWorkspacesAndWindows: SettingsService.value("bar", "combineWorkspacesAndWindows")
     readonly property bool showWorkspaceNumbers: SettingsService.value("bar", "showWorkspaceNumbers")
+    readonly property bool showWorkspaceNumbersOnHover: SettingsService.value("bar", "showWorkspaceNumbersOnHover")
     readonly property bool useAppIcons: SettingsService.value("bar", "useAppIcons")
 
     function setCombineWorkspacesAndWindows(value) {
@@ -49,6 +58,14 @@ QtObject {
 
     function resetShowWorkspaceNumbers() {
         return SettingsService.reset("bar", "showWorkspaceNumbers");
+    }
+
+    function setShowWorkspaceNumbersOnHover(value) {
+        return SettingsService.setValue("bar", "showWorkspaceNumbersOnHover", value);
+    }
+
+    function resetShowWorkspaceNumbersOnHover() {
+        return SettingsService.reset("bar", "showWorkspaceNumbersOnHover");
     }
 
     function setUseAppIcons(value) {

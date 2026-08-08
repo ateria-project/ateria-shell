@@ -9,13 +9,14 @@ Rectangle {
     id: root
 
     property var view: null
+    property bool showWorkspaceNumbersOnHover: true
     readonly property int cellWidth: WorkspaceLayout.workspaceWidth
     readonly property int barHeight: WorkspaceLayout.barHeight
     readonly property int indicatorSize: 28
     readonly property var items: root.view?.visibleWorkspaces ?? []
     readonly property int activePosition: Number(root.view?.activeWorkspacePosition ?? -1)
     readonly property var activeItem: root.activePosition >= 0 && root.activePosition < root.items.length ? root.items[root.activePosition] : null
-    readonly property bool showWorkspaceNumbers: workspaceHover.hovered
+    readonly property bool showWorkspaceNumbers: root.showWorkspaceNumbersOnHover && workspaceHover.hovered
 
     signal workspaceRequested(int workspaceIndex)
 
