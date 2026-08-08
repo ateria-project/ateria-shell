@@ -1,13 +1,11 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
-import qs.platform.settings
 
 PanelWindow {
     id: root
 
-    readonly property url bundledSource: Quickshell.shellPath("assets/sora-sagano-Dksk8szLRN0-unsplash.jpg")
-    property url source: SettingsService.ready && WallpaperSettings.selectedFile.length > 0 ? WallpaperSettings.selectedFile : root.bundledSource
+    property url source: WallpaperController.source
 
     color: "transparent"
 

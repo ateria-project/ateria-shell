@@ -18,6 +18,7 @@ Scope {
 
     Component.onCompleted: {
         SettingsBootstrap.initialize();
+        WallpaperController.initialize();
         NotificationService.initialize();
         ClipboardService.initialize();
     }

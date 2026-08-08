@@ -24,7 +24,7 @@ QtObject {
     readonly property color panelOuterKeyline: darkMode ? Qt.rgba(0.0, 0.0, 0.0, 0.055) : Qt.rgba(0.0, 0.0, 0.0, 0.05)
     readonly property color panelInnerHighlight: darkMode ? Qt.rgba(1.0, 1.0, 1.0, 0.025) : Qt.rgba(1.0, 1.0, 1.0, 0.10)
 
-    readonly property var lightScheme: ({
+    readonly property var fallbackLightScheme: ({
             "primary": "#006a60",
             "onPrimary": "#ffffff",
             "primaryContainer": "#9ef2e4",
@@ -73,7 +73,7 @@ QtObject {
             "scrim": "#000000",
             "shadow": "#000000"
         })
-    readonly property var darkScheme: ({
+    readonly property var fallbackDarkScheme: ({
             "primary": "#82d5c8",
             "onPrimary": "#003731",
             "primaryContainer": "#005048",
@@ -123,8 +123,19 @@ QtObject {
             "shadow": "#000000"
         })
 
+    property var generatedLightScheme: null
+    property var generatedDarkScheme: null
+
+    readonly property var lightScheme: generatedLightScheme ?? fallbackLightScheme
+    readonly property var darkScheme: generatedDarkScheme ?? fallbackDarkScheme
+
     // Active semantic roles
     readonly property var scheme: darkMode ? darkScheme : lightScheme
+
+    function setGeneratedSchemes(light, dark) {
+        generatedLightScheme = light;
+        generatedDarkScheme = dark;
+    }
 
     function setDarkMode(enabled) {
         darkMode = enabled;
