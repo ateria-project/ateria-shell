@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
-import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import qs.components
@@ -16,8 +15,8 @@ import qs.theme
 TransientPanelWindow {
     id: root
 
-    property real clipboardWidth: 440
-    property int maximumVisibleEntries: 8
+    property real clipboardWidth: 450
+    property int maximumVisibleEntries: 5
     property int entryRowHeight: 56
     property real lastPointerSceneX: NaN
     property real lastPointerSceneY: NaN
@@ -25,11 +24,12 @@ TransientPanelWindow {
     open: SurfaceController.clipboardOpen
     targetScreen: SurfaceController.clipboardScreen
     fallbackScreen: SurfaceController.preferredScreen(WorkspaceService.focusedOutputName)
+    transitionsEnabled: true
     color: "transparent"
-    exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.exclusiveZone: 0
     WlrLayershell.keyboardFocus: root.interactive ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     WlrLayershell.namespace: "ateria-shell-clipboard"
+    onTransitionRequested: (entering, generation) => panelTransition.transition(entering, generation)
 
     anchors {
         top: true
@@ -119,7 +119,7 @@ TransientPanelWindow {
     onFullyClosed: searchField.clear()
 
     DismissibleOverlay {
-        excludedItem: panelSurface
+        excludedItem: panelSurface.presentationItem
         enabled: root.interactive
         onDismissed: root.closeClipboard()
     }
@@ -127,10 +127,15 @@ TransientPanelWindow {
     M3Surface {
         id: panelSurface
 
-        anchors.centerIn: parent
+        anchors {
+            right: parent.right
+            bottom: parent.bottom
+            rightMargin: 6
+            bottomMargin: 6
+        }
         width: Math.min(root.clipboardWidth, Math.max(0, root.width - Metrics.spacingXl * 2))
         height: clipboardContent.implicitHeight + Metrics.spacingLg * 2
-        radius: Metrics.radiusXl
+        radius: 16
         HoverHandler {
             id: pointerSelectionHandler
 
@@ -271,5 +276,13 @@ TransientPanelWindow {
                 }
             }
         }
+    }
+
+    SlideTransition {
+        id: panelTransition
+
+        target: panelSurface.presentationItem
+        hiddenOffsetY: panelSurface.height + panelSurface.anchors.bottomMargin + 5
+        onTransitionFinished: generation => root.completeTransition(generation)
     }
 }
