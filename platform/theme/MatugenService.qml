@@ -8,6 +8,8 @@ import "MatugenParser.js" as MatugenParser
 Singleton {
     id: root
 
+    readonly property string configPath: root.localPath(Quickshell.shellPath("matugen/config.toml"))
+    readonly property string matugenPath: root.localPath(Quickshell.shellPath("tools/ateria-matugen"))
     property string requestedPath: ""
     property string inFlightPath: ""
     property string lastError: ""
@@ -46,16 +48,20 @@ Singleton {
             generateProcess.exec([
                 "bash",
                 "-c",
-                "n=\"$(basename \"$1\")\"; t=\"/tmp/ateria_thumbs/$n.jpg\"; if [ ! -f \"$t\" ]; then mkdir -p /tmp/ateria_thumbs && nice -n 19 ffmpeg -loglevel error -y -threads 1 -i \"$1\" -map 0:v:0 -frames:v 1 -vf 'scale=640:-2' -q:v 4 \"$t\" </dev/null; fi; matugen image \"$t\" --source-color-index 0 --json hex --quiet",
+                "n=\"$(basename \"$1\")\"; t=\"/tmp/ateria_thumbs/$n.jpg\"; if [ ! -f \"$t\" ]; then mkdir -p /tmp/ateria_thumbs && nice -n 19 ffmpeg -loglevel error -y -threads 1 -i \"$1\" -map 0:v:0 -frames:v 1 -vf 'scale=640:-2' -q:v 4 \"$t\" </dev/null; fi; \"$2\" image \"$t\" --config \"$3\" --source-color-index 0 --json hex --quiet",
                 "_",
-                root.inFlightPath
+                root.inFlightPath,
+                root.matugenPath,
+                root.configPath
             ]);
             return;
         }
 
         generateProcess.exec([
-            "matugen", "image", root.inFlightPath,
-            "--source-color-index", "0", "--json", "hex", "--quiet"
+            root.matugenPath, "image", root.inFlightPath,
+            "--config", root.configPath,
+            "--source-color-index", "0",
+            "--json", "hex", "--quiet"
         ]);
     }
 

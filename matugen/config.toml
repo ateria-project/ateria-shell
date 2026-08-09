@@ -1,0 +1,23 @@
+[config]
+version_check = false
+caching = true
+
+[templates.niri]
+input_path = "@ATERIA_ROOT@/matugen/templates/niri.kdl"
+output_path = "@CONFIG_HOME@/niri/ateria/colors.kdl"
+
+[templates.kitty]
+input_path = "@ATERIA_ROOT@/matugen/templates/kitty.conf"
+output_path = "@CONFIG_HOME@/kitty/ateria-colors.conf"
+
+[templates.foot]
+input_path = "@ATERIA_ROOT@/matugen/templates/foot.ini"
+output_path = "@CONFIG_HOME@/foot/ateria-colors.ini"
+
+[templates.foot_live]
+input_path = "@ATERIA_ROOT@/matugen/templates/foot-sequences"
+output_path = "@STATE_HOME@/ateria/foot-sequences"
+
+[templates.fish]
+input_path = "@ATERIA_ROOT@/matugen/templates/fish.fish"
+output_path = "@CONFIG_HOME@/fish/ateria-colors.fish"

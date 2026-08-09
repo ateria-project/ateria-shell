@@ -1,2 +1,4 @@
 .qmlls.ini
 .idea/
+__pycache__/
+*.py[cod]

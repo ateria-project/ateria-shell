@@ -1,0 +1,664 @@
+#!/usr/bin/env python3
+"""Install and update Ateria's optional application configuration presets."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import tomllib
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+STATE_SCHEMA = 1
+
+
+class ConfigError(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class FileSpec:
+    source: Path
+    source_name: str
+    destination: Path
+    strategy: str
+    template: bytes
+    content: bytes
+
+
+@dataclass(frozen=True)
+class Component:
+    component_id: str
+    name: str
+    description: str
+    default: bool
+    detect: tuple[str, ...]
+    validate: tuple[str, ...]
+    reload: tuple[str, ...]
+    reload_optional: bool
+    files: tuple[FileSpec, ...]
+
+    @property
+    def managed_files(self) -> tuple[FileSpec, ...]:
+        return tuple(file for file in self.files if file.strategy == "managed")
+
+    @property
+    def seed_files(self) -> tuple[FileSpec, ...]:
+        return tuple(file for file in self.files if file.strategy == "seed")
+
+    @property
+    def generated_files(self) -> tuple[FileSpec, ...]:
+        return tuple(file for file in self.files if file.strategy == "generated")
+
+    @property
+    def initial_files(self) -> tuple[FileSpec, ...]:
+        return self.seed_files + self.generated_files
+
+
+def source_root() -> Path:
+    override = os.getenv("ATERIA_SOURCE_ROOT")
+    return Path(override).expanduser().resolve() if override else Path(__file__).resolve().parent.parent
+
+
+def xdg_path(variable: str, fallback: str) -> Path:
+    return Path(os.getenv(variable, str(Path.home() / fallback))).expanduser().resolve()
+
+
+def runtime_paths() -> dict[str, Path]:
+    return {
+        "config_home": xdg_path("XDG_CONFIG_HOME", ".config"),
+        "state_home": xdg_path("XDG_STATE_HOME", ".local/state"),
+    }
+
+
+def expand_tokens(value: str, paths: dict[str, Path]) -> str:
+    try:
+        return value.format(**{key: str(path) for key, path in paths.items()})
+    except KeyError as error:
+        raise ConfigError(f"unknown path token in manifest: {error.args[0]}") from error
+
+
+def render_content(template: bytes, paths: dict[str, Path]) -> bytes:
+    content = template.replace(b"@CONFIG_HOME@", str(paths["config_home"]).encode())
+    return content.replace(b"@STATE_HOME@", str(paths["state_home"]).encode())
+
+
+def load_components(root: Path, paths: dict[str, Path]) -> dict[str, Component]:
+    manifest_path = root / "configs/manifest.toml"
+    try:
+        manifest = tomllib.loads(manifest_path.read_text())
+    except FileNotFoundError as error:
+        raise ConfigError(f"manifest not found: {manifest_path}") from error
+    except tomllib.TOMLDecodeError as error:
+        raise ConfigError(f"invalid manifest: {error}") from error
+
+    if manifest.get("schema") != 1:
+        raise ConfigError("unsupported config manifest schema")
+
+    components: dict[str, Component] = {}
+    configs_root = (root / "configs").resolve()
+    for data in manifest.get("components", []):
+        component_id = str(data.get("id", "")).strip()
+        if not component_id or component_id in components:
+            raise ConfigError(f"invalid or duplicate component id: {component_id!r}")
+
+        files: list[FileSpec] = []
+        destinations: set[Path] = set()
+        for file_data in data.get("files", []):
+            source_name = str(file_data.get("source", "")).strip()
+            strategy = str(file_data.get("strategy", "managed"))
+            if strategy not in {"managed", "seed", "generated"}:
+                raise ConfigError(f"unsupported strategy for {component_id}: {strategy}")
+
+            source = (root / "configs" / source_name).resolve()
+            if configs_root not in source.parents or not source.is_file():
+                raise ConfigError(f"invalid source for {component_id}: {source_name}")
+
+            destination_text = str(file_data.get("destination", "")).strip()
+            if not destination_text:
+                raise ConfigError(f"missing destination for {component_id}: {source_name}")
+            destination = Path(os.path.abspath(Path(expand_tokens(destination_text, paths)).expanduser()))
+            if destination in destinations:
+                raise ConfigError(f"duplicate destination for {component_id}: {destination}")
+            destinations.add(destination)
+            template = source.read_bytes()
+            content = render_content(template, paths)
+            files.append(FileSpec(source, source_name, destination, strategy, template, content))
+
+        if not files:
+            raise ConfigError(f"component has no files: {component_id}")
+
+        components[component_id] = Component(
+            component_id=component_id,
+            name=str(data.get("name", component_id)),
+            description=str(data.get("description", "")),
+            default=bool(data.get("default", False)),
+            detect=tuple(map(str, data.get("detect", []))),
+            validate=tuple(map(str, data.get("validate", []))),
+            reload=tuple(map(str, data.get("reload", []))),
+            reload_optional=bool(data.get("reload_optional", False)),
+            files=tuple(files),
+        )
+
+    return components
+
+
+def state_path(paths: dict[str, Path]) -> Path:
+    return paths["state_home"] / "ateria/configs.json"
+
+
+def load_state(paths: dict[str, Path]) -> dict[str, Any]:
+    path = state_path(paths)
+    try:
+        state = json.loads(path.read_text())
+    except FileNotFoundError:
+        return {"schema": STATE_SCHEMA, "components": {}}
+    except json.JSONDecodeError as error:
+        raise ConfigError(f"invalid state file {path}: {error}") from error
+
+    if state.get("schema") != STATE_SCHEMA or not isinstance(state.get("components"), dict):
+        raise ConfigError(f"unsupported state file: {path}")
+    return state
+
+
+def atomic_write(path: Path, content: bytes, mode: int = 0o644) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.chmod(mode)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def atomic_symlink(path: Path, target: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        temporary.unlink()
+        temporary.symlink_to(target)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def save_state(paths: dict[str, Path], state: dict[str, Any]) -> None:
+    content = (json.dumps(state, indent=2, sort_keys=True) + "\n").encode()
+    atomic_write(state_path(paths), content)
+
+
+def file_hash(path: Path) -> str | None:
+    try:
+        content = path.read_bytes()
+    except (FileNotFoundError, IsADirectoryError, PermissionError):
+        return None
+    return hashlib.sha256(content).hexdigest()
+
+
+def path_exists(path: Path) -> bool:
+    """Return true for regular paths and broken symbolic links."""
+    return path.exists() or path.is_symlink()
+
+
+def source_hash(file: FileSpec) -> str:
+    return hashlib.sha256(file.content).hexdigest()
+
+
+def install_file(file: FileSpec, destination: Path | None = None, content: bytes | None = None) -> None:
+    target = destination or file.destination
+    atomic_write(target, file.content if content is None else content, file.source.stat().st_mode & 0o777)
+
+
+def available(component: Component) -> bool:
+    return all(shutil.which(command) is not None for command in component.detect)
+
+
+def require_component(components: dict[str, Component], component_id: str) -> Component:
+    try:
+        return components[component_id]
+    except KeyError as error:
+        choices = ", ".join(sorted(components)) or "none"
+        raise ConfigError(f"unknown component {component_id!r}; available components: {choices}") from error
+
+
+def confirm(message: str, assume_yes: bool) -> None:
+    if assume_yes:
+        return
+    if not sys.stdin.isatty():
+        raise ConfigError(f"{message} Re-run with --yes to confirm.")
+    response = input(f"{message} [y/N] ").strip().lower()
+    if response not in {"y", "yes"}:
+        raise ConfigError("cancelled")
+
+
+def command_for(component: Component, field: str, paths: dict[str, Path]) -> list[str]:
+    command = getattr(component, field)
+    return [expand_tokens(argument, paths) for argument in command]
+
+
+def run_validation(
+    component: Component,
+    paths: dict[str, Path],
+    writes: dict[Path, FileSpec],
+    deletes: set[Path] | None = None,
+) -> None:
+    if not component.validate:
+        return
+
+    deletes = deletes or set()
+    config_home = paths["config_home"]
+    with tempfile.TemporaryDirectory(prefix="ateria-config-") as temporary_name:
+        staged_home = Path(temporary_name) / "home"
+        staged_config = staged_home / ".config"
+
+        # Copy each affected application's current directory so user-owned
+        # includes participate in validation. Dereference links into the
+        # temporary tree to ensure staged writes cannot escape the tree.
+        affected = {file.destination for file in component.files} | set(writes) | set(deletes)
+        roots: set[str] = set()
+        for destination in affected:
+            try:
+                relative = destination.relative_to(config_home)
+            except ValueError as error:
+                raise ConfigError(f"cannot stage file outside XDG_CONFIG_HOME: {destination}") from error
+            if not relative.parts:
+                raise ConfigError(f"cannot stage XDG_CONFIG_HOME itself: {destination}")
+            roots.add(relative.parts[0])
+
+        try:
+            for name in roots:
+                current = config_home / name
+                staged = staged_config / name
+                if current.is_dir():
+                    shutil.copytree(current, staged, symlinks=False, ignore_dangling_symlinks=True)
+                elif current.is_file():
+                    staged.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(current, staged)
+        except (OSError, shutil.Error) as error:
+            raise ConfigError(f"cannot stage {component.name} for validation: {error}") from error
+
+        for destination in deletes:
+            relative = destination.relative_to(config_home)
+            staged = staged_config / relative
+            if staged.is_dir() and not staged.is_symlink():
+                shutil.rmtree(staged)
+            else:
+                staged.unlink(missing_ok=True)
+
+        staged_paths = dict(paths)
+        staged_paths["config_home"] = staged_config
+        for destination, file in writes.items():
+            staged = staged_config / destination.relative_to(config_home)
+            install_file(file, staged, render_content(file.template, staged_paths))
+
+        command = command_for(component, "validate", staged_paths)
+        environment = dict(os.environ)
+        environment["HOME"] = str(staged_home)
+        environment["XDG_CONFIG_HOME"] = str(staged_config)
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, check=False, env=environment)
+        except FileNotFoundError as error:
+            raise ConfigError(f"cannot validate {component.name}; command not found: {command[0]}") from error
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()
+            raise ConfigError(f"{component.name} validation failed: {detail or 'unknown error'}")
+
+
+def run_reload(component: Component, paths: dict[str, Path]) -> None:
+    if not component.reload:
+        return
+    try:
+        result = subprocess.run(command_for(component, "reload", paths), capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        return
+    if result.returncode != 0 and not component.reload_optional:
+        detail = (result.stderr or result.stdout).strip()
+        print(f"warning: could not reload {component.name}: {detail or 'command failed'}", file=sys.stderr)
+
+
+def create_backup(component: Component, paths: dict[str, Path]) -> str | None:
+    existing = [file for file in component.managed_files if path_exists(file.destination)]
+    if not existing:
+        return None
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    backup_dir = paths["state_home"] / f"ateria/backups/{stamp}-{component.component_id}"
+    backup_dir.mkdir(parents=True)
+    entries = []
+    for index, file in enumerate(existing):
+        entry = {"destination": str(file.destination)}
+        if file.destination.is_symlink():
+            entry["symlink"] = os.readlink(file.destination)
+        else:
+            backup = backup_dir / f"{index:03d}-{file.destination.name}"
+            shutil.copy2(file.destination, backup)
+            entry["backup"] = str(backup)
+        entries.append(entry)
+
+    atomic_write(backup_dir / "backup.json", (json.dumps({"files": entries}, indent=2) + "\n").encode())
+    return str(backup_dir)
+
+
+def install_component(
+    component: Component,
+    paths: dict[str, Path],
+    state: dict[str, Any],
+    assume_yes: bool,
+    force: bool,
+) -> None:
+    if component.component_id in state["components"]:
+        raise ConfigError(f"{component.name} is already installed; use update instead")
+    if not available(component) and not force:
+        missing = ", ".join(command for command in component.detect if shutil.which(command) is None)
+        raise ConfigError(f"{component.name} is unavailable; missing command(s): {missing}")
+
+    replaced = [
+        file.destination
+        for file in component.managed_files
+        if path_exists(file.destination) and file_hash(file.destination) != source_hash(file)
+    ]
+    if replaced:
+        targets = "\n  ".join(map(str, replaced))
+        confirm(f"Install {component.name} and replace these files after backing them up?\n  {targets}", assume_yes)
+    else:
+        confirm(f"Install the {component.name} preset?", assume_yes)
+
+    writes = {file.destination: file for file in component.managed_files}
+    writes.update({file.destination: file for file in component.initial_files if not path_exists(file.destination)})
+    run_validation(component, paths, writes)
+
+    backup = create_backup(component, paths)
+    existed_before = {file.destination: path_exists(file.destination) for file in component.files}
+    tracked: dict[str, Any] = {}
+    try:
+        for file in component.managed_files:
+            install_file(file)
+            tracked[str(file.destination)] = {
+                "source": file.source_name,
+                "installed_hash": source_hash(file),
+            }
+            print(f"installed {file.destination}")
+        for file in component.initial_files:
+            if not path_exists(file.destination):
+                install_file(file)
+                owner = "user-owned" if file.strategy == "seed" else "generated"
+                print(f"created {owner} {file.destination}")
+        state["components"][component.component_id] = {"backup": backup, "files": tracked}
+        save_state(paths, state)
+    except OSError as error:
+        state["components"].pop(component.component_id, None)
+        for destination, existed in existed_before.items():
+            if not existed:
+                destination.unlink(missing_ok=True)
+        restore_backup(backup, overwrite=True)
+        raise ConfigError(f"could not install {component.name}; restored the backup: {error}") from error
+
+    run_reload(component, paths)
+
+
+def update_component(component: Component, paths: dict[str, Path], state: dict[str, Any]) -> None:
+    installed = state["components"].get(component.component_id)
+    if installed is None:
+        raise ConfigError(f"{component.name} is not installed")
+
+    old_files: dict[str, Any] = installed.get("files", {})
+    current_specs = {str(file.destination): file for file in component.managed_files}
+    writes: dict[Path, FileSpec] = {}
+    conflict_writes: dict[Path, tuple[FileSpec, str]] = {}
+    deletes: set[Path] = set()
+    new_tracking: dict[str, Any] = {}
+
+    for destination_text, file in current_specs.items():
+        destination = file.destination
+        new_hash = source_hash(file)
+        previous = old_files.get(destination_text)
+        current_hash = file_hash(destination)
+
+        if previous is None:
+            if current_hash is None or current_hash == new_hash:
+                if current_hash != new_hash:
+                    writes[destination] = file
+                new_tracking[destination_text] = {"source": file.source_name, "installed_hash": new_hash}
+            else:
+                proposed = destination.with_name(destination.name + ".new")
+                conflict_writes[proposed] = (file, f"{destination} is unmanaged")
+            continue
+
+        old_hash = str(previous.get("installed_hash", ""))
+        if new_hash == old_hash:
+            new_tracking[destination_text] = previous
+        elif current_hash in {old_hash, new_hash}:
+            if current_hash != new_hash:
+                writes[destination] = file
+            new_tracking[destination_text] = {"source": file.source_name, "installed_hash": new_hash}
+        else:
+            proposed = destination.with_name(destination.name + ".new")
+            conflict_writes[proposed] = (file, f"{destination} has local changes")
+            new_tracking[destination_text] = previous
+
+    for destination_text, previous in old_files.items():
+        if destination_text in current_specs:
+            continue
+        destination = Path(destination_text)
+        if file_hash(destination) == previous.get("installed_hash"):
+            deletes.add(destination)
+        elif path_exists(destination):
+            print(f"preserved locally modified retired file {destination}")
+
+    initial_writes = {file.destination: file for file in component.initial_files if not path_exists(file.destination)}
+    validation_writes = dict(writes)
+    validation_writes.update(initial_writes)
+    run_validation(component, paths, validation_writes, deletes)
+
+    for destination in deletes:
+        destination.unlink(missing_ok=True)
+        print(f"removed retired {destination}")
+    for destination, file in writes.items():
+        install_file(file, destination)
+        print(f"updated {destination}")
+    for destination, file in initial_writes.items():
+        install_file(file, destination)
+        owner = "user-owned" if file.strategy == "seed" else "generated"
+        print(f"created {owner} {destination}")
+    for destination, (file, reason) in conflict_writes.items():
+        install_file(file, destination)
+        print(f"conflict: {reason}; wrote the preset as {destination}")
+
+    installed["files"] = new_tracking
+    save_state(paths, state)
+    if writes or deletes:
+        run_reload(component, paths)
+    if not writes and not deletes and not conflict_writes and not initial_writes:
+        print(f"{component.name} is already up to date")
+
+
+def restore_backup(backup_text: str | None, overwrite: bool = False) -> list[Path]:
+    if not backup_text:
+        return []
+    manifest = Path(backup_text) / "backup.json"
+    try:
+        data = json.loads(manifest.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+    restored = []
+    for entry in data.get("files", []):
+        destination = Path(entry["destination"])
+        if not overwrite and path_exists(destination):
+            continue
+
+        if "symlink" in entry:
+            atomic_symlink(destination, entry["symlink"])
+            restored.append(destination)
+            continue
+
+        backup = Path(entry.get("backup", ""))
+        if backup.is_file():
+            atomic_write(destination, backup.read_bytes(), backup.stat().st_mode & 0o777)
+            restored.append(destination)
+    return restored
+
+
+def uninstall_component(
+    component: Component,
+    paths: dict[str, Path],
+    state: dict[str, Any],
+    assume_yes: bool,
+) -> None:
+    installed = state["components"].get(component.component_id)
+    if installed is None:
+        raise ConfigError(f"{component.name} is not installed")
+    confirm(f"Uninstall the {component.name} preset and restore its backup where possible?", assume_yes)
+
+    removed: list[Path] = []
+    for destination_text, record in installed.get("files", {}).items():
+        destination = Path(destination_text)
+        if file_hash(destination) == record.get("installed_hash"):
+            destination.unlink(missing_ok=True)
+            removed.append(destination)
+            print(f"removed {destination}")
+        elif path_exists(destination):
+            print(f"preserved locally modified {destination}")
+
+    restored = restore_backup(installed.get("backup"))
+    for destination in restored:
+        print(f"restored {destination}")
+
+    del state["components"][component.component_id]
+    save_state(paths, state)
+    if removed or restored:
+        run_reload(component, paths)
+
+
+def component_status(component: Component, state: dict[str, Any]) -> tuple[str, list[str]]:
+    installed = state["components"].get(component.component_id)
+    if installed is None:
+        return "not installed", []
+
+    details = []
+    has_local_changes = False
+    update_available = False
+    specs = {str(file.destination): file for file in component.managed_files}
+    tracked = installed.get("files", {})
+    for destination_text, record in tracked.items():
+        destination = Path(destination_text)
+        current_hash = file_hash(destination)
+        installed_hash = record.get("installed_hash")
+        if current_hash is None:
+            has_local_changes = True
+            details.append(f"missing: {destination}")
+        elif current_hash != installed_hash:
+            has_local_changes = True
+            details.append(f"modified: {destination}")
+        file = specs.get(destination_text)
+        if file and source_hash(file) != installed_hash:
+            update_available = True
+            details.append(f"update available: {destination}")
+
+    for destination_text, file in specs.items():
+        if destination_text not in tracked:
+            update_available = True
+            details.append(f"new managed file: {file.destination}")
+
+    for destination_text in tracked:
+        if destination_text not in specs:
+            update_available = True
+            details.append(f"retired managed file: {destination_text}")
+
+    if has_local_changes and update_available:
+        return "modified; update available", details
+    if has_local_changes:
+        return "modified", details
+    if update_available:
+        return "update available", details
+    return "installed", details
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser("list", help="list available presets")
+
+    status = subparsers.add_parser("status", help="show preset state")
+    status.add_argument("component", nargs="?")
+
+    install = subparsers.add_parser("install", help="install a preset")
+    install.add_argument("component")
+    install.add_argument("--yes", action="store_true", help="confirm replacement without prompting")
+    install.add_argument("--force", action="store_true", help="install even when the application is not detected")
+
+    update = subparsers.add_parser("update", help="update installed presets")
+    update.add_argument("component", nargs="?")
+
+    uninstall = subparsers.add_parser("uninstall", help="remove a preset")
+    uninstall.add_argument("component")
+    uninstall.add_argument("--yes", action="store_true", help="confirm removal without prompting")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    paths = runtime_paths()
+    components = load_components(source_root(), paths)
+    state = load_state(paths)
+
+    if args.command == "list":
+        for component in components.values():
+            status, _ = component_status(component, state)
+            availability = "available" if available(component) else "not detected"
+            marker = "default" if component.default else "optional"
+            print(f"{component.component_id:12} {availability:12} {status:24} {marker}  {component.description}")
+        return 0
+
+    if args.command == "status":
+        selected = [require_component(components, args.component)] if args.component else list(components.values())
+        for component in selected:
+            status, details = component_status(component, state)
+            print(f"{component.component_id}: {status}")
+            for detail in details:
+                print(f"  {detail}")
+        return 0
+
+    if args.command == "install":
+        install_component(require_component(components, args.component), paths, state, args.yes, args.force)
+        return 0
+
+    if args.command == "update":
+        selected = [require_component(components, args.component)] if args.component else [
+            component for component in components.values() if component.component_id in state["components"]
+        ]
+        if not selected:
+            print("no presets are installed")
+        for component in selected:
+            update_component(component, paths, state)
+        return 0
+
+    if args.command == "uninstall":
+        uninstall_component(require_component(components, args.component), paths, state, args.yes)
+        return 0
+
+    raise ConfigError(f"unhandled command: {args.command}")
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (ConfigError, OSError) as error:
+        print(f"ateria-config: {error}", file=sys.stderr)
+        raise SystemExit(1)

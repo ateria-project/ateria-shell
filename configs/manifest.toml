@@ -1,0 +1,137 @@
+schema = 1
+
+[[components]]
+id = "niri"
+name = "Niri compositor"
+description = "Ateria's portable Niri configuration and wallpaper-synchronised colors."
+default = true
+detect = ["niri"]
+validate = ["niri", "validate", "-c", "{config_home}/niri/config.kdl"]
+reload = ["niri", "msg", "action", "load-config-file"]
+
+[[components.files]]
+source = "niri/config.kdl"
+destination = "{config_home}/niri/config.kdl"
+strategy = "managed"
+
+[[components.files]]
+source = "niri/ateria/defaults.kdl"
+destination = "{config_home}/niri/ateria/defaults.kdl"
+strategy = "managed"
+
+[[components.files]]
+source = "niri/ateria/binds.kdl"
+destination = "{config_home}/niri/ateria/binds.kdl"
+strategy = "managed"
+
+[[components.files]]
+source = "niri/ateria/rules.kdl"
+destination = "{config_home}/niri/ateria/rules.kdl"
+strategy = "managed"
+
+[[components.files]]
+source = "niri/user-config.kdl"
+destination = "{config_home}/niri/user-config.kdl"
+strategy = "seed"
+
+[[components.files]]
+source = "niri/applications.kdl"
+destination = "{config_home}/niri/applications.kdl"
+strategy = "seed"
+
+[[components.files]]
+source = "niri/ateria/colors.kdl"
+destination = "{config_home}/niri/ateria/colors.kdl"
+strategy = "generated"
+
+[[components]]
+id = "kitty"
+name = "Kitty terminal"
+description = "Ateria's Kitty configuration and wallpaper-synchronised terminal colors."
+default = true
+detect = ["kitty"]
+reload = ["pkill", "-USR1", "kitty"]
+reload_optional = true
+
+[[components.files]]
+source = "kitty/kitty.conf"
+destination = "{config_home}/kitty/kitty.conf"
+strategy = "managed"
+
+[[components.files]]
+source = "kitty/user.conf"
+destination = "{config_home}/kitty/user.conf"
+strategy = "seed"
+
+[[components.files]]
+source = "kitty/ateria-colors.conf"
+destination = "{config_home}/kitty/ateria-colors.conf"
+strategy = "generated"
+
+[[components]]
+id = "foot"
+name = "Foot terminal"
+description = "Ateria's Foot configuration and wallpaper-synchronised terminal colors."
+default = true
+detect = ["foot"]
+validate = ["foot", "--check-config", "--config", "{config_home}/foot/foot.ini"]
+
+[[components.files]]
+source = "foot/foot.ini"
+destination = "{config_home}/foot/foot.ini"
+strategy = "managed"
+
+[[components.files]]
+source = "foot/ateria/defaults.ini"
+destination = "{config_home}/foot/ateria/defaults.ini"
+strategy = "managed"
+
+[[components.files]]
+source = "foot/ateria/apply-colors"
+destination = "{config_home}/foot/ateria/apply-colors"
+strategy = "managed"
+
+[[components.files]]
+source = "foot/user.ini"
+destination = "{config_home}/foot/user.ini"
+strategy = "seed"
+
+[[components.files]]
+source = "foot/ateria-colors.ini"
+destination = "{config_home}/foot/ateria-colors.ini"
+strategy = "generated"
+
+[[components]]
+id = "fish"
+name = "Fish shell"
+description = "Ateria's interactive Fish configuration and wallpaper-synchronised syntax colors."
+default = true
+detect = ["fish"]
+validate = [
+    "fish",
+    "-n",
+    "{config_home}/fish/config.fish",
+    "{config_home}/fish/user.fish",
+    "{config_home}/fish/user-colors.fish",
+    "{config_home}/fish/ateria-colors.fish",
+]
+
+[[components.files]]
+source = "fish/config.fish"
+destination = "{config_home}/fish/config.fish"
+strategy = "managed"
+
+[[components.files]]
+source = "fish/user.fish"
+destination = "{config_home}/fish/user.fish"
+strategy = "seed"
+
+[[components.files]]
+source = "fish/user-colors.fish"
+destination = "{config_home}/fish/user-colors.fish"
+strategy = "seed"
+
+[[components.files]]
+source = "fish/ateria-colors.fish"
+destination = "{config_home}/fish/ateria-colors.fish"
+strategy = "generated"

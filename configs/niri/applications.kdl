@@ -1,0 +1,12 @@
+// User-owned application commands for Ateria keybinds.
+//
+// Values are shell command strings. You can use command arguments, for example:
+// ATERIA_TERMINAL "kitty --single-instance"
+
+environment {
+    ATERIA_TERMINAL "kitty"
+    ATERIA_BROWSER "firefox"
+    ATERIA_EDITOR "code"
+    ATERIA_FILE_MANAGER "thunar"
+    ATERIA_AUDIO_SETTINGS "pavucontrol"
+}
