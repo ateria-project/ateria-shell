@@ -6,37 +6,42 @@ layout(std140, binding = 0) uniform buf {
     float qt_Opacity;
     float aspect;
     float progress;
+    float variant;
 };
 layout(binding = 1) uniform sampler2D source1;
 layout(binding = 2) uniform sampler2D source2;
 
 void main() {
     vec2 uv = qt_TexCoord0;
-    
-    // Phase 1 (0% to 30%): Horizontal beam grows left & right beyond screen edges
-    float pX = clamp(progress * 3.333, 0.0, 1.0);
-    float distX = abs(uv.x - 0.5);
-    float limitX = pX * 0.55;
-    
-    // Phase 2 (20% to 100%): Vertical beam expands top & bottom beyond screen edges
-    float pY = clamp((progress - 0.2) * 1.25, 0.0, 1.0);
-    float distY = abs(uv.y - 0.5);
-    float limitY = pY * 0.55;
-    
-    float edge = 0.02;
-    float maskX = smoothstep(limitX - edge, limitX, distX);
-    float maskY = smoothstep(limitY - edge, limitY, distY);
-    
-    float blend = max(maskX, maskY);
-    
-    vec4 t1 = texture(source1, uv);
-    vec4 t2 = texture(source2, uv);
-    
-    vec4 color = mix(t2, t1, blend);
-    float envelope = 4.0 * progress * (1.0 - progress);
-    float beamDistance = min(abs(distX - limitX), abs(distY - limitY));
-    float beamGlow = (1.0 - smoothstep(0.0, edge * 0.65, beamDistance)) * envelope;
-    color.rgb += vec3(0.16, 0.20, 0.24) * beamGlow;
+    vec2 beamOrigin;
+    if (variant < 0.5)
+        beamOrigin = vec2(0.5);
+    else if (variant < 1.5)
+        beamOrigin = vec2(0.34, 0.42);
+    else if (variant < 2.5)
+        beamOrigin = vec2(0.66, 0.58);
+    else if (variant < 3.5)
+        beamOrigin = vec2(0.50, 0.30);
+    else
+        beamOrigin = vec2(0.50, 0.70);
+    vec2 distanceFromCenter = abs(uv - beamOrigin);
 
+    // Let a horizontal CRT beam form first, then open vertically. The wide
+    // soft edges are deliberate; narrow hard beams read as a rendering glitch.
+    float horizontal = smoothstep(0.0, 0.28, progress);
+    float vertical = smoothstep(0.18, 1.0, progress);
+    float halfWidth = mix(0.0, 0.76, horizontal);
+    float halfHeight = mix(0.0, 0.76, vertical);
+    float edge = 0.024;
+    float outsideX = smoothstep(halfWidth, halfWidth + edge, distanceFromCenter.x);
+    float outsideY = smoothstep(halfHeight, halfHeight + edge, distanceFromCenter.y);
+    float reveal = 1.0 - max(outsideX, outsideY);
+
+    float horizontalEdge = (1.0 - smoothstep(0.0, edge, abs(distanceFromCenter.x - halfWidth))) * (1.0 - outsideY);
+    float verticalEdge = (1.0 - smoothstep(0.0, edge, abs(distanceFromCenter.y - halfHeight))) * (1.0 - outsideX);
+    float glow = max(horizontalEdge, verticalEdge) * smoothstep(0.03, 0.16, progress) * (1.0 - smoothstep(0.84, 1.0, progress));
+
+    vec4 color = mix(texture(source1, uv), texture(source2, uv), reveal);
+    color.rgb += (vec3(1.0) - color.rgb) * glow * 0.12;
     fragColor = color * qt_Opacity;
 }

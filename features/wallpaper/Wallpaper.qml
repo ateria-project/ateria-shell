@@ -7,6 +7,7 @@ import Quickshell
 import Quickshell.Wayland
 import qs.platform.power
 import qs.platform.workspace
+import qs.theme
 
 PanelWindow {
     id: root
@@ -17,7 +18,12 @@ PanelWindow {
     property bool videoLoading: false
     property bool blurTransition: false
     property int currentGroupIndex: 0
-    property string currentShader: shaderGroups[0][0]
+    property string currentShader: transitionGroups[0].shader
+    property int transitionDuration: transitionGroups[0].minDuration
+    property int transitionEasingType: transitionGroups[0].easingType
+    property var transitionEasingCurve: transitionGroups[0].easingCurve
+    property real transitionVariant: transitionGroups[0].variants[0]
+    property var previousVariants: ({})
     readonly property string outputName: root.screen ? root.screen.name : ""
     readonly property var workspaceView: WorkspaceService.viewForOutput(root.outputName, 1)
     readonly property var activeWorkspaceWindow: {
@@ -59,36 +65,70 @@ PanelWindow {
         return false;
     }
     readonly property bool videoPlaybackSuppressed: PowerService.powerSaver || root.hasCoveringWindows
-    readonly property var shaderGroups: [
-        // Circle reveals
-        ["shaders/circle_reveal.frag.qsb", "shaders/circle_reveal_center.frag.qsb", "shaders/circle_reveal_top.frag.qsb", "shaders/circle_reveal_corner.frag.qsb", "shaders/circle_reveal_bl.frag.qsb", "shaders/circle_reveal_br.frag.qsb", "shaders/circle_reveal_tr.frag.qsb", "shaders/circle_reveal_outer.frag.qsb", "shaders/circle_reveal_ring.frag.qsb"],
-        // Diamonds
-        ["shaders/diamond.frag.qsb", "shaders/diamond_bl.frag.qsb", "shaders/diamond_outer.frag.qsb", "shaders/diamond_tr.frag.qsb", "shaders/diamond_tl.frag.qsb", "shaders/diamond_br.frag.qsb"],
-        // Clock sweeps
-        ["shaders/clock_wipe.frag.qsb", "shaders/clock_wipe_ccw.frag.qsb", "shaders/clock_wipe_both.frag.qsb"],
-        // Wipes
-        ["shaders/wipe.frag.qsb", "shaders/wipe_tr_bl.frag.qsb", "shaders/wipe_bl_tr.frag.qsb", "shaders/wipe_br_tl.frag.qsb", "shaders/scanline_wipe.frag.qsb"],
-        // Waves
-        ["shaders/wave.frag.qsb", "shaders/wave_down.frag.qsb", "shaders/wave_up.frag.qsb", "shaders/wave_dual.frag.qsb"],
-        // Tiles
-        ["shaders/squares.frag.qsb", "shaders/squares_spiral.frag.qsb", "shaders/squares_checker.frag.qsb"],
-        // Shapes
-        ["shaders/star.frag.qsb", "shaders/sparkle_star.frag.qsb", "shaders/triangle.frag.qsb"],
-        // Hexagons
-        ["shaders/hexagons.frag.qsb", "shaders/hexagons_spiral.frag.qsb"],
-        // Retro
-        ["shaders/tv_off.frag.qsb", "shaders/tv_on.frag.qsb"],
-        // Radial fans
-        ["shaders/radial_fan.frag.qsb", "shaders/radial_fan_double.frag.qsb"],
-        // Page curls
-        ["shaders/page_curl.frag.qsb", "shaders/page_curl_tl.frag.qsb", "shaders/page_curl_br.frag.qsb"]
+    // Each full-screen transition follows a Material motion role: expanding
+    // surfaces settle into place, while the directional wave keeps a more
+    // even on-screen path. Longer transformations get more time to travel.
+    readonly property var transitionGroups: [
+        {
+            "shader": "shaders/circle_reveal_center.frag.qsb",
+            "minDuration": 1200,
+            "maxDuration": 1450,
+            "easingType": Motion.easingEmphasizedDecelerate,
+            "easingCurve": Motion.emphasizedDecelerateCurve,
+            "variants": [0, 1, 2, 3, 4, 5, 6, 7]
+        },
+        {
+            "shader": "shaders/star.frag.qsb",
+            "minDuration": 1800,
+            "maxDuration": 2200,
+            "easingType": Motion.easingStandard,
+            "easingCurve": Motion.standardCurve,
+            "variants": [0, 1, 2, 3, 4, 5]
+        },
+        {
+            "shader": "shaders/wave.frag.qsb",
+            "minDuration": 1200,
+            "maxDuration": 1400,
+            "easingType": Motion.easingStandard,
+            "easingCurve": Motion.standardCurve,
+            "variants": [0, 1, 2, 3]
+        },
+        {
+            "shader": "shaders/ripple_reveal.frag.qsb",
+            "minDuration": 1450,
+            "maxDuration": 1750,
+            "easingType": Motion.easingEmphasizedDecelerate,
+            "easingCurve": Motion.emphasizedDecelerateCurve,
+            "variants": [0, 1, 2, 3, 4, 5]
+        },
+        {
+            "shader": "shaders/tv_on.frag.qsb",
+            "minDuration": 1200,
+            "maxDuration": 1350,
+            "easingType": Motion.easingStandardDecelerate,
+            "easingCurve": Motion.standardDecelerateCurve,
+            "variants": [0, 1, 2, 3, 4]
+        }
     ]
 
-    function pickNextShader() {
-        const group = shaderGroups[currentGroupIndex];
-        const variantIndex = Math.floor(Math.random() * group.length);
-        currentShader = group[variantIndex];
-        currentGroupIndex = (currentGroupIndex + 1) % shaderGroups.length;
+    function pickNextTransition() {
+        const group = transitionGroups[currentGroupIndex];
+        const previousVariant = previousVariants[currentGroupIndex];
+        let variantIndex = Math.floor(Math.random() * group.variants.length);
+        if (group.variants.length > 1 && group.variants[variantIndex] === previousVariant)
+            variantIndex = (variantIndex + 1 + Math.floor(Math.random() * (group.variants.length - 1))) % group.variants.length;
+
+        const nextVariant = group.variants[variantIndex];
+        const updatedVariants = Object.assign({}, previousVariants);
+        updatedVariants[currentGroupIndex] = nextVariant;
+        previousVariants = updatedVariants;
+
+        currentShader = group.shader;
+        transitionDuration = group.minDuration + Math.floor(Math.random() * (group.maxDuration - group.minDuration + 1));
+        transitionEasingType = group.easingType;
+        transitionEasingCurve = group.easingCurve;
+        transitionVariant = nextVariant;
+        currentGroupIndex = (currentGroupIndex + 1) % transitionGroups.length;
     }
 
     function activeMedia(): WallpaperMedia {
@@ -197,7 +237,7 @@ PanelWindow {
         root.transitionPending = false;
         active.pauseVideo();
         next.playVideo();
-        root.pickNextShader();
+        root.pickNextTransition();
         shaderEffect.progress = 0;
         shaderEffect.visible = true;
         src1.scheduleUpdate();
@@ -228,8 +268,8 @@ PanelWindow {
     WlrLayershell.exclusiveZone: -1
     WlrLayershell.layer: WlrLayer.Background
     Component.onCompleted: {
-        currentGroupIndex = Math.floor(Math.random() * shaderGroups.length);
-        pickNextShader();
+        currentGroupIndex = Math.floor(Math.random() * transitionGroups.length);
+        pickNextTransition();
     }
     onSourceChanged: {
         let active = root.activeMedia();
@@ -419,6 +459,7 @@ PanelWindow {
         property variant source2: root.isMedia1Active ? src2 : src1
         property real aspect: root.width / root.height
         property real progress: 0
+        property real variant: root.transitionVariant
 
         anchors.fill: parent
         visible: false
@@ -472,8 +513,9 @@ PanelWindow {
         property: "progress"
         from: 0
         to: 1
-        duration: 850
-        easing.type: Easing.OutCubic
+        duration: root.transitionDuration
+        easing.type: root.transitionEasingType
+        easing.bezierCurve: root.transitionEasingCurve
         onFinished: root.finishTransition()
     }
 

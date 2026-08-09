@@ -6,6 +6,7 @@ layout(std140, binding = 0) uniform buf {
     float qt_Opacity;
     float aspect;
     float progress;
+    float variant;
 };
 layout(binding = 1) uniform sampler2D source1;
 layout(binding = 2) uniform sampler2D source2;
@@ -24,31 +25,46 @@ float sdStar5(in vec2 p, in float r, in float rf) {
 }
 
 void main() {
-    vec2 p = qt_TexCoord0 - 0.5;
-    p.x *= aspect;
-    
-    float angle = progress * 3.14159 * 1.5;
+    vec2 uv = qt_TexCoord0;
+    vec2 origin;
+    if (variant < 0.5)
+        origin = vec2(0.18, 0.22);
+    else if (variant < 1.5)
+        origin = vec2(0.82, 0.78);
+    else if (variant < 2.5)
+        origin = vec2(0.80, 0.18);
+    else if (variant < 3.5)
+        origin = vec2(0.20, 0.80);
+    else if (variant < 4.5)
+        origin = vec2(0.10, 0.50);
+    else
+        origin = vec2(0.90, 0.50);
+    vec2 scale = vec2(aspect, 1.0);
+    vec2 p = (uv - origin) * scale;
+
+    // A restrained turn gives the star a sense of motion without becoming a
+    // spinning novelty wipe.
+    float startAngle = -0.30 + variant * 0.14;
+    float endAngle = startAngle + (mod(variant, 2.0) < 0.5 ? -0.22 : 0.22);
+    float angle = mix(startAngle, endAngle, progress);
     float s = sin(angle);
     float c = cos(angle);
     p = vec2(p.x * c - p.y * s, p.x * s + p.y * c);
-    
-    float maxDist = length(vec2(0.5 * aspect, 0.5)) * 2.5;
-    float edge = 0.04;
-    float radius = progress * (maxDist + 2.0 * edge) - edge;
-    
-    float dist = sdStar5(p, max(radius, 0.001), 0.4); 
-    if (radius < 0.0) dist = edge * 2.0;
-    
-    float blend = smoothstep(-edge, edge, dist); 
-    
-    vec4 t1 = texture(source1, qt_TexCoord0);
-    vec4 t2 = texture(source2, qt_TexCoord0);
-    
-    float envelope = 4.0 * progress * (1.0 - progress);
-    float glow = (1.0 - smoothstep(0.0, edge * 2.0, abs(dist))) * envelope;
-    
-    vec4 color = mix(t2, t1, blend);
-    color.rgb += vec3(1.0, 0.8, 0.2) * glow;
-    
+
+    float edge = 0.026;
+    // The star's inner valleys need more radius than a circle to reach the
+    // corners; otherwise a stale corner flashes just before completion.
+    float maxDistance = max(
+        max(length(-origin * scale), length((vec2(1.0, 0.0) - origin) * scale)),
+        max(length((vec2(0.0, 1.0) - origin) * scale), length((vec2(1.0) - origin) * scale))
+    );
+    float maxRadius = maxDistance * 2.6;
+    float radius = mix(-edge * 2.0, maxRadius + edge * 2.0, progress);
+    float distanceToStar = radius < 0.0 ? edge * 3.0 : sdStar5(p, max(radius, 0.001), 0.43);
+    float reveal = 1.0 - smoothstep(-edge, edge, distanceToStar);
+
+    float edgeBand = 1.0 - smoothstep(0.0, edge * 2.6, abs(distanceToStar));
+    vec4 color = mix(texture(source1, uv), texture(source2, uv), reveal);
+    color.rgb += (vec3(1.0) - color.rgb) * edgeBand * 0.10;
     fragColor = color * qt_Opacity;
 }

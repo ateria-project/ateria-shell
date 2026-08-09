@@ -8,24 +8,50 @@ layout(std140, binding = 0) uniform buf {
     float qt_Opacity;
     float aspect;
     float progress;
+    float variant;
 };
 
 layout(binding = 1) uniform sampler2D source1;
 layout(binding = 2) uniform sampler2D source2;
 
 void main() {
-    float wave = sin(qt_TexCoord0.y * 12.5664) * 0.04;
-    float d = qt_TexCoord0.x + wave;
-    
-    float edge = 0.06;
-    float minD = -0.04;
-    float maxD = 1.04;
-    
-    float p = minD + progress * (maxD - minD + 2.0 * edge);
-    float blend = smoothstep(p - edge, p, d);
-    
-    vec4 t1 = texture(source1, qt_TexCoord0);
-    vec4 t2 = texture(source2, qt_TexCoord0);
-    
-    fragColor = mix(t2, t1, blend) * qt_Opacity;
+    vec2 uv = qt_TexCoord0;
+
+    // Two low-amplitude waves make a fluid front without the harsh, regular
+    // sine wave that made the previous wipe feel mechanical. Variants change
+    // the travel direction instead of merely mirroring the same frame.
+    float coordinate;
+    float perpendicular;
+    vec2 travelDirection;
+    if (variant < 0.5) {
+        coordinate = uv.x;
+        perpendicular = uv.y;
+        travelDirection = vec2(1.0, 0.0);
+    } else if (variant < 1.5) {
+        coordinate = 1.0 - uv.x;
+        perpendicular = uv.y;
+        travelDirection = vec2(-1.0, 0.0);
+    } else if (variant < 2.5) {
+        coordinate = uv.y;
+        perpendicular = uv.x;
+        travelDirection = vec2(0.0, 1.0);
+    } else {
+        coordinate = 1.0 - uv.y;
+        perpendicular = uv.x;
+        travelDirection = vec2(0.0, -1.0);
+    }
+    float wave = sin(perpendicular * 8.0 + progress * 1.7 + variant * 0.7) * 0.024
+        + sin(perpendicular * 18.0 - progress * 2.4 + 0.8 + variant * 1.1) * 0.010;
+    float front = mix(-0.10, 1.10, progress);
+    float signedDistance = coordinate - front + wave;
+    float edge = 0.032;
+    float reveal = 1.0 - smoothstep(-edge, edge, signedDistance);
+
+    float edgeBand = 1.0 - smoothstep(0.0, edge * 2.5, abs(signedDistance));
+    vec2 refraction = travelDirection * edgeBand * 0.008;
+    vec4 outgoing = texture(source1, uv + refraction);
+    vec4 incoming = texture(source2, uv - refraction);
+    vec4 color = mix(outgoing, incoming, reveal);
+    color.rgb += (vec3(1.0) - color.rgb) * edgeBand * 0.07;
+    fragColor = color * qt_Opacity;
 }
