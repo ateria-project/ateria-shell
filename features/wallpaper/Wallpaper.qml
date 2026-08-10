@@ -153,14 +153,9 @@ PanelWindow {
                 media1.pauseVideo();
             if (media2.firstVideoFrameReady)
                 media2.pauseVideo();
-            videoHibernateTimer.restart();
             root.maybeFreezeRenderer();
             return;
         }
-
-        videoHibernateTimer.stop();
-        media1.wakeVideoBackend();
-        media2.wakeVideoBackend();
 
         // Loading deliberately keeps the outgoing wallpaper paused. During a
         // shader transition only the incoming wallpaper should be moving.
@@ -380,7 +375,6 @@ PanelWindow {
 
         property url source: ""
         property bool active: false
-        property bool videoBackendEnabled: true
         readonly property bool isVideo: root.isVideoSource(source)
         readonly property var imageTexture: img
         readonly property var videoBackend: videoLoader.item
@@ -407,18 +401,6 @@ PanelWindow {
                 mediaRoot.videoBackend?.pauseVideo();
         }
 
-        function hibernateVideoBackend(): void {
-            if (mediaRoot.isVideo && mediaRoot.firstVideoFrameReady) {
-                mediaRoot.pauseVideo();
-                mediaRoot.videoBackendEnabled = false;
-            }
-        }
-
-        function wakeVideoBackend(): void {
-            if (mediaRoot.isVideo)
-                mediaRoot.videoBackendEnabled = true;
-        }
-
         function playVideo(): void {
             if (!mediaRoot.isVideo || !mediaRoot.firstVideoFrameReady)
                 return;
@@ -434,7 +416,6 @@ PanelWindow {
                 mediaRoot.playVideo();
         }
 
-        onSourceChanged: videoBackendEnabled = true
         onActiveChanged: {
             if (active)
                 resumeVideo();
@@ -468,7 +449,7 @@ PanelWindow {
         LazyLoader {
             id: videoLoader
 
-            active: mediaRoot.isVideo && mediaRoot.videoBackendEnabled
+            active: mediaRoot.isVideo
 
             Item {
                 id: backend
@@ -657,20 +638,6 @@ PanelWindow {
         interval: 32
         repeat: false
         onTriggered: root.updatesEnabled = false
-    }
-
-    Timer {
-        id: videoHibernateTimer
-
-        // Pausing is instant; release decoder state only after a sustained
-        // cover/power-saving interval to avoid churn during normal window use.
-        interval: 30000
-        repeat: false
-        onTriggered: {
-            media1.hibernateVideoBackend();
-            media2.hibernateVideoBackend();
-            root.maybeFreezeRenderer();
-        }
     }
 
     NumberAnimation {
