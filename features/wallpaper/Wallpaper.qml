@@ -202,7 +202,7 @@ PanelWindow {
 
         loadingPreview.visible = true;
         loadingPreview.scale = 1;
-        previewDriftAnim.restart();
+        previewPulseAnim.restart();
         loadingPreview.scheduleUpdate();
         if (loadingPreview.opacity >= 0.99) {
             root.loadPendingVideo();
@@ -227,7 +227,7 @@ PanelWindow {
     function clearLoadingPreview(): void {
         previewInAnim.stop();
         previewOutAnim.stop();
-        previewDriftAnim.stop();
+        previewPulseAnim.stop();
         loadingPreview.opacity = 0;
         loadingPreview.scale = 1;
         loadingPreview.visible = false;
@@ -589,8 +589,8 @@ PanelWindow {
         anchors.fill: parent
         visible: false
         opacity: 0
-        // During video preparation this cached preview drifts subtly. Once the
-        // transition starts it remains above the shader briefly and fades.
+        // During video preparation this cached preview performs one subtle
+        // breath pulse. It then remains above the shader briefly and fades.
         z: 4
     }
 
@@ -616,15 +616,27 @@ PanelWindow {
         onFinished: root.clearLoadingPreview()
     }
 
-    NumberAnimation {
-        id: previewDriftAnim
+    SequentialAnimation {
+        id: previewPulseAnim
 
-        target: loadingPreview
-        property: "scale"
-        from: 1
-        to: 1.02
-        duration: 1400
-        easing.type: Easing.OutCubic
+        // A transform-only pulse keeps the paused wallpaper feeling responsive
+        // without reprocessing its cached texture.
+        NumberAnimation {
+            target: loadingPreview
+            property: "scale"
+            from: 1
+            to: 1.02
+            duration: 360
+            easing.type: Easing.OutCubic
+        }
+
+        NumberAnimation {
+            target: loadingPreview
+            property: "scale"
+            to: 1.008
+            duration: 440
+            easing.type: Easing.InOutSine
+        }
     }
 
     Timer {
