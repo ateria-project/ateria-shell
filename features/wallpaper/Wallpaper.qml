@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Effects
 import QtMultimedia
 import Quickshell
 import Quickshell.Wayland
@@ -16,7 +15,8 @@ PanelWindow {
     property bool isMedia1Active: true
     property bool transitionPending: false
     property bool videoLoading: false
-    property bool blurTransition: false
+    property bool previewFadingOut: false
+    property var previewSourceMedia: null
     property int currentGroupIndex: 0
     property string currentShader: transitionGroups[0].shader
     property int transitionDuration: transitionGroups[0].minDuration
@@ -24,6 +24,7 @@ PanelWindow {
     property var transitionEasingCurve: transitionGroups[0].easingCurve
     property real transitionVariant: transitionGroups[0].variants[0]
     property var previousVariants: ({})
+    readonly property real transitionTextureScale: PowerService.powerSaver ? 0.5 : 0.75
     readonly property string outputName: root.screen ? root.screen.name : ""
     readonly property var workspaceView: WorkspaceService.viewForOutput(root.outputName, 1)
     readonly property var activeWorkspaceWindow: {
@@ -144,6 +145,7 @@ PanelWindow {
     }
 
     function reconcileVideoPlayback(): void {
+        root.wakeRenderer();
         if (root.videoPlaybackSuppressed) {
             // Do not stop a newly selected video before its first frame. It
             // must finish warming up so the pending transition can proceed.
@@ -151,8 +153,14 @@ PanelWindow {
                 media1.pauseVideo();
             if (media2.firstVideoFrameReady)
                 media2.pauseVideo();
+            videoHibernateTimer.restart();
+            root.maybeFreezeRenderer();
             return;
         }
+
+        videoHibernateTimer.stop();
+        media1.wakeVideoBackend();
+        media2.wakeVideoBackend();
 
         // Loading deliberately keeps the outgoing wallpaper paused. During a
         // shader transition only the incoming wallpaper should be moving.
@@ -166,21 +174,43 @@ PanelWindow {
         root.activeMedia().resumeVideo();
     }
 
+    function wakeRenderer(): void {
+        settleRendererTimer.stop();
+        root.updatesEnabled = true;
+    }
+
+    function maybeFreezeRenderer(): void {
+        const active = root.activeMedia();
+        if (root.transitionPending || root.videoLoading || shaderEffect.visible || !active.ready)
+            return;
+        if (active.isVideo && !root.videoPlaybackSuppressed)
+            return;
+
+        // Delay the freeze by two frames so the final image reaches the
+        // compositor before render-loop updates are suspended.
+        settleRendererTimer.restart();
+    }
+
     function startVideoLoading(): void {
+        root.wakeRenderer();
+        root.previewSourceMedia = root.activeMedia();
+        root.previewFadingOut = false;
         root.transitionPending = true;
         root.videoLoading = true;
-        root.blurTransition = false;
         root.activeMedia().pauseVideo();
         root.inactiveMedia().source = "";
 
-        loadingBlur.visible = true;
-        if (loadingBlur.opacity >= 0.99) {
+        loadingPreview.visible = true;
+        loadingPreview.scale = 1;
+        previewDriftAnim.restart();
+        loadingPreview.scheduleUpdate();
+        if (loadingPreview.opacity >= 0.99) {
             root.loadPendingVideo();
             return;
         }
 
-        blurInAnim.from = loadingBlur.opacity;
-        blurInAnim.restart();
+        previewInAnim.from = loadingPreview.opacity;
+        previewInAnim.restart();
     }
 
     function loadPendingVideo(): void {
@@ -194,16 +224,20 @@ PanelWindow {
             root.beginTransition();
     }
 
-    function clearLoadingBlur(): void {
-        blurInAnim.stop();
-        loadingBlur.opacity = 0;
-        loadingBlur.visible = false;
+    function clearLoadingPreview(): void {
+        previewInAnim.stop();
+        previewOutAnim.stop();
+        previewDriftAnim.stop();
+        loadingPreview.opacity = 0;
+        loadingPreview.scale = 1;
+        loadingPreview.visible = false;
+        root.previewFadingOut = false;
+        root.previewSourceMedia = null;
     }
 
     function cancelVideoLoading(resumeActive): void {
         root.videoLoading = false;
-        root.blurTransition = false;
-        root.clearLoadingBlur();
+        root.clearLoadingPreview();
         if (resumeActive)
             root.activeMedia().resumeVideo();
     }
@@ -214,12 +248,15 @@ PanelWindow {
             return;
 
         if (root.videoLoading) {
-            // Start the prepared video, then run the shader while the loading
-            // blur remains in place beneath it.
+            // The zoomed preview is only a loading placeholder. Once the
+            // decoder has a frame, transition from the real outgoing
+            // wallpaper underneath it, then fade the preview independently.
             next.playVideo();
             root.videoLoading = false;
-            root.blurTransition = true;
+            root.previewFadingOut = true;
             root.startShaderTransition();
+            previewOutAnim.from = loadingPreview.opacity;
+            previewOutAnim.restart();
             return;
         }
 
@@ -234,14 +271,17 @@ PanelWindow {
 
         // Keep the outgoing side static. A prepared incoming video can run
         // immediately, so only one shader source needs a live texture.
+        root.wakeRenderer();
         root.transitionPending = false;
         active.pauseVideo();
         next.playVideo();
         root.pickNextTransition();
         shaderEffect.progress = 0;
         shaderEffect.visible = true;
-        src1.scheduleUpdate();
-        src2.scheduleUpdate();
+        if (media1.isVideo)
+            src1.scheduleUpdate();
+        if (media2.isVideo)
+            src2.scheduleUpdate();
         transitionStartTimer.restart();
     }
 
@@ -249,11 +289,9 @@ PanelWindow {
         transitionStartTimer.stop();
         transitionAnim.stop();
 
-        // The blur was used only as the shader's old-wallpaper input. Remove
-        // it atomically before exposing the completed wallpaper directly.
-        root.clearLoadingBlur();
-        root.blurTransition = false;
-
+        // Remove any remaining loading preview before exposing the completed
+        // wallpaper directly.
+        root.clearLoadingPreview();
         root.isMedia1Active = !root.isMedia1Active;
         shaderEffect.progress = 0;
         shaderEffect.visible = false;
@@ -262,16 +300,20 @@ PanelWindow {
         const inactive = root.inactiveMedia();
         inactive.source = "";
         active.resumeVideo();
+        root.maybeFreezeRenderer();
     }
 
-    color: "transparent"
+    color: "black"
+    surfaceFormat.opaque: true
     WlrLayershell.exclusiveZone: -1
     WlrLayershell.layer: WlrLayer.Background
     Component.onCompleted: {
         currentGroupIndex = Math.floor(Math.random() * transitionGroups.length);
         pickNextTransition();
+        root.wakeRenderer();
     }
     onSourceChanged: {
+        root.wakeRenderer();
         let active = root.activeMedia();
 
         // Settle on the previous target before accepting another rapid change.
@@ -310,6 +352,11 @@ PanelWindow {
 
     function handleMediaStatus(media: WallpaperMedia, isReady: bool): void {
         const next = root.inactiveMedia();
+        if (media === root.activeMedia() && String(media.source) === String(root.source)) {
+            if (isReady)
+                root.maybeFreezeRenderer();
+            return;
+        }
         if (media !== next || String(media.source) !== String(root.source))
             return;
 
@@ -333,14 +380,43 @@ PanelWindow {
 
         property url source: ""
         property bool active: false
-        property bool firstVideoFrameReady: false
+        property bool videoBackendEnabled: true
         readonly property bool isVideo: root.isVideoSource(source)
+        readonly property var imageTexture: img
+        readonly property var videoBackend: videoLoader.item
+        readonly property bool firstVideoFrameReady: isVideo && videoBackend?.firstFrameReady === true
+        readonly property vector4d textureCrop: {
+            if (isVideo || img.implicitWidth <= 0 || img.implicitHeight <= 0 || mediaRoot.width <= 0 || mediaRoot.height <= 0)
+                return Qt.vector4d(1, 1, 0, 0);
+
+            const sourceAspect = img.implicitWidth / img.implicitHeight;
+            const targetAspect = mediaRoot.width / mediaRoot.height;
+            if (sourceAspect > targetAspect) {
+                const scale = targetAspect / sourceAspect;
+                return Qt.vector4d(scale, 1, (1 - scale) * 0.5, 0);
+            }
+
+            const scale = sourceAspect / targetAspect;
+            return Qt.vector4d(1, scale, 0, (1 - scale) * 0.5);
+        }
         readonly property bool ready: isVideo ? firstVideoFrameReady : img.status === Image.Ready
-        readonly property bool error: isVideo ? player.mediaStatus === MediaPlayer.InvalidMedia : img.status === Image.Error
+        readonly property bool error: isVideo ? videoBackend?.error === true : img.status === Image.Error
 
         function pauseVideo(): void {
-            if (mediaRoot.isVideo && player.playbackState === MediaPlayer.PlayingState)
-                player.pause();
+            if (mediaRoot.isVideo)
+                mediaRoot.videoBackend?.pauseVideo();
+        }
+
+        function hibernateVideoBackend(): void {
+            if (mediaRoot.isVideo && mediaRoot.firstVideoFrameReady) {
+                mediaRoot.pauseVideo();
+                mediaRoot.videoBackendEnabled = false;
+            }
+        }
+
+        function wakeVideoBackend(): void {
+            if (mediaRoot.isVideo)
+                mediaRoot.videoBackendEnabled = true;
         }
 
         function playVideo(): void {
@@ -350,8 +426,7 @@ PanelWindow {
                 mediaRoot.pauseVideo();
                 return;
             }
-            if (player.playbackState !== MediaPlayer.PlayingState)
-                player.play();
+            mediaRoot.videoBackend?.playVideo();
         }
 
         function resumeVideo(): void {
@@ -359,7 +434,7 @@ PanelWindow {
                 mediaRoot.playVideo();
         }
 
-        onSourceChanged: firstVideoFrameReady = false
+        onSourceChanged: videoBackendEnabled = true
         onActiveChanged: {
             if (active)
                 resumeVideo();
@@ -385,39 +460,64 @@ PanelWindow {
             sourceSize: Qt.size(mediaRoot.width, mediaRoot.height)
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
-            cache: true
+            cache: false
             smooth: true
-            mipmap: true
+            mipmap: false
         }
 
-        MediaPlayer {
-            id: player
-            source: mediaRoot.isVideo ? mediaRoot.source : ""
-            videoOutput: videoOut
-            loops: MediaPlayer.Infinite
-            autoPlay: mediaRoot.isVideo
-        }
+        LazyLoader {
+            id: videoLoader
 
-        VideoOutput {
-            id: videoOut
-            anchors.fill: parent
-            visible: mediaRoot.isVideo && mediaRoot.firstVideoFrameReady
-            fillMode: VideoOutput.PreserveAspectCrop
-        }
+            active: mediaRoot.isVideo && mediaRoot.videoBackendEnabled
 
-        Connections {
-            target: videoOut.videoSink
+            Item {
+                id: backend
 
-            function onVideoFrameChanged(): void {
-                if (!mediaRoot.isVideo || !player.hasVideo || mediaRoot.firstVideoFrameReady)
-                    return;
+                parent: mediaRoot
+                anchors.fill: parent
+                property bool firstFrameReady: false
+                readonly property bool error: player.mediaStatus === MediaPlayer.InvalidMedia
 
-                // The decoder is warm and VideoOutput owns a renderable frame.
-                // Readiness immediately advances a pending transition, so the
-                // incoming video can keep playing without pause/play churn.
-                mediaRoot.firstVideoFrameReady = true;
-                if (root.videoPlaybackSuppressed)
-                    mediaRoot.pauseVideo();
+                function pauseVideo(): void {
+                    if (player.playbackState === MediaPlayer.PlayingState)
+                        player.pause();
+                }
+
+                function playVideo(): void {
+                    if (backend.firstFrameReady && player.playbackState !== MediaPlayer.PlayingState)
+                        player.play();
+                }
+
+                MediaPlayer {
+                    id: player
+
+                    source: mediaRoot.source
+                    videoOutput: videoOut
+                    loops: MediaPlayer.Infinite
+                    autoPlay: true
+                }
+
+                VideoOutput {
+                    id: videoOut
+
+                    anchors.fill: parent
+                    visible: backend.firstFrameReady
+                    fillMode: VideoOutput.PreserveAspectCrop
+                }
+
+                Connections {
+                    target: videoOut.videoSink
+
+                    function onVideoFrameChanged(): void {
+                        if (!player.hasVideo || backend.firstFrameReady)
+                            return;
+
+                        // The decoder is warm and VideoOutput owns a renderable frame.
+                        backend.firstFrameReady = true;
+                        if (root.videoPlaybackSuppressed)
+                            backend.pauseVideo();
+                    }
+                }
             }
         }
     }
@@ -440,58 +540,91 @@ PanelWindow {
 
     ShaderEffectSource {
         id: src1
-        sourceItem: media1
+        sourceItem: media1.isVideo && (root.transitionPending || shaderEffect.visible) ? media1 : null
         hideSource: shaderEffect.visible
         live: shaderEffect.visible && media1.isVideo && media1 === root.inactiveMedia()
+        textureSize: Qt.size(Math.max(1, Math.round(root.width * root.transitionTextureScale)), Math.max(1, Math.round(root.height * root.transitionTextureScale)))
     }
 
     ShaderEffectSource {
         id: src2
-        sourceItem: media2
+        sourceItem: media2.isVideo && (root.transitionPending || shaderEffect.visible) ? media2 : null
         hideSource: shaderEffect.visible
         live: shaderEffect.visible && media2.isVideo && media2 === root.inactiveMedia()
+        textureSize: src1.textureSize
     }
 
     ShaderEffect {
         id: shaderEffect
 
-        property variant source1: root.blurTransition ? loadingBlur : (root.isMedia1Active ? src1 : src2)
-        property variant source2: root.isMedia1Active ? src2 : src1
+        property variant source1: root.isMedia1Active ? (media1.isVideo ? src1 : media1.imageTexture) : (media2.isVideo ? src2 : media2.imageTexture)
+        property variant source2: root.isMedia1Active ? (media2.isVideo ? src2 : media2.imageTexture) : (media1.isVideo ? src1 : media1.imageTexture)
+        property vector4d crop1: root.activeMedia().textureCrop
+        property vector4d crop2: root.inactiveMedia().textureCrop
         property real aspect: root.width / root.height
         property real progress: 0
         property real variant: root.transitionVariant
 
         anchors.fill: parent
         visible: false
+        blending: false
         z: 3
         fragmentShader: root.currentShader
     }
 
-    MultiEffect {
-        id: loadingBlur
+    ShaderEffectSource {
+        id: loadingPreview
 
+        // Keep the preview pinned to the outgoing slot. activeMedia() changes
+        // when the transition settles and must never redirect this texture to
+        // the newly revealed wallpaper for a frame.
+        sourceItem: (root.videoLoading || root.previewFadingOut) ? root.previewSourceMedia : null
+        // The wallpaper window may have been frozen before this source was
+        // attached. Keep it live during fade-in so the first black allocation
+        // is replaced by a rendered outgoing frame, then freeze that frame
+        // while the video loads and transitions.
+        live: root.videoLoading
+        textureSize: Qt.size(Math.max(1, Math.round(root.width * (PowerService.powerSaver ? 0.75 : 1.0))), Math.max(1, Math.round(root.height * (PowerService.powerSaver ? 0.75 : 1.0))))
+        smooth: true
         anchors.fill: parent
-        source: root.isMedia1Active ? media1 : media2
         visible: false
         opacity: 0
-        // This is the shader's old-wallpaper input. It never processes the
-        // selected wallpaper or the shader's combined output.
-        z: 1
-        autoPaddingEnabled: false
-        blurEnabled: true
-        blur: 0.8
-        blurMax: 32
+        // During video preparation this cached preview drifts subtly. Once the
+        // transition starts it remains above the shader briefly and fades.
+        z: 4
     }
 
     NumberAnimation {
-        id: blurInAnim
+        id: previewInAnim
 
-        target: loadingBlur
+        target: loadingPreview
         property: "opacity"
         to: 1
         duration: 220
         easing.type: Easing.OutCubic
         onFinished: root.loadPendingVideo()
+    }
+
+    NumberAnimation {
+        id: previewOutAnim
+
+        target: loadingPreview
+        property: "opacity"
+        to: 0
+        duration: 600
+        easing.type: Easing.OutCubic
+        onFinished: root.clearLoadingPreview()
+    }
+
+    NumberAnimation {
+        id: previewDriftAnim
+
+        target: loadingPreview
+        property: "scale"
+        from: 1
+        to: 1.02
+        duration: 1400
+        easing.type: Easing.OutCubic
     }
 
     Timer {
@@ -503,6 +636,28 @@ PanelWindow {
         onTriggered: {
             if (shaderEffect.visible)
                 transitionAnim.restart();
+        }
+    }
+
+    Timer {
+        id: settleRendererTimer
+
+        interval: 32
+        repeat: false
+        onTriggered: root.updatesEnabled = false
+    }
+
+    Timer {
+        id: videoHibernateTimer
+
+        // Pausing is instant; release decoder state only after a sustained
+        // cover/power-saving interval to avoid churn during normal window use.
+        interval: 30000
+        repeat: false
+        onTriggered: {
+            media1.hibernateVideoBackend();
+            media2.hibernateVideoBackend();
+            root.maybeFreezeRenderer();
         }
     }
 

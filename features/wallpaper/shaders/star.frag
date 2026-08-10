@@ -7,9 +7,14 @@ layout(std140, binding = 0) uniform buf {
     float aspect;
     float progress;
     float variant;
+    vec4 crop1;
+    vec4 crop2;
 };
 layout(binding = 1) uniform sampler2D source1;
 layout(binding = 2) uniform sampler2D source2;
+
+vec4 sample1(vec2 uv) { return texture(source1, uv * crop1.xy + crop1.zw); }
+vec4 sample2(vec2 uv) { return texture(source2, uv * crop2.xy + crop2.zw); }
 
 float sdStar5(in vec2 p, in float r, in float rf) {
     const vec2 k1 = vec2(0.809016994375, -0.587785252292);
@@ -64,7 +69,7 @@ void main() {
     float reveal = 1.0 - smoothstep(-edge, edge, distanceToStar);
 
     float edgeBand = 1.0 - smoothstep(0.0, edge * 2.6, abs(distanceToStar));
-    vec4 color = mix(texture(source1, uv), texture(source2, uv), reveal);
+    vec4 color = mix(sample1(uv), sample2(uv), reveal);
     color.rgb += (vec3(1.0) - color.rgb) * edgeBand * 0.10;
-    fragColor = color * qt_Opacity;
+    fragColor = vec4(color.rgb * qt_Opacity, 1.0);
 }

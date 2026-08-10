@@ -7,9 +7,14 @@ layout(std140, binding = 0) uniform buf {
     float aspect;
     float progress;
     float variant;
+    vec4 crop1;
+    vec4 crop2;
 };
 layout(binding = 1) uniform sampler2D source1;
 layout(binding = 2) uniform sampler2D source2;
+
+vec4 sample1(vec2 uv) { return texture(source1, uv * crop1.xy + crop1.zw); }
+vec4 sample2(vec2 uv) { return texture(source2, uv * crop2.xy + crop2.zw); }
 
 void main() {
     vec2 uv = qt_TexCoord0;
@@ -41,7 +46,7 @@ void main() {
     float verticalEdge = (1.0 - smoothstep(0.0, edge, abs(distanceFromCenter.y - halfHeight))) * (1.0 - outsideX);
     float glow = max(horizontalEdge, verticalEdge) * smoothstep(0.03, 0.16, progress) * (1.0 - smoothstep(0.84, 1.0, progress));
 
-    vec4 color = mix(texture(source1, uv), texture(source2, uv), reveal);
+    vec4 color = mix(sample1(uv), sample2(uv), reveal);
     color.rgb += (vec3(1.0) - color.rgb) * glow * 0.12;
-    fragColor = color * qt_Opacity;
+    fragColor = vec4(color.rgb * qt_Opacity, 1.0);
 }

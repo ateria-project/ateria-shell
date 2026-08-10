@@ -5,6 +5,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 import Qt.labs.folderlistmodel
+import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
@@ -31,6 +32,22 @@ TransientPanelWindow {
     readonly property var wallpaperModel: WallpaperController.wallpapers
 
     signal thumbnailReady(string fileUrl)
+
+    function thumbnailKey(url): string {
+        // FNV-1a keeps cache names short while hashing the complete URL, so
+        // equal basenames in different folders cannot collide.
+        const value = String(url);
+        let hash = 2166136261;
+        for (let index = 0; index < value.length; ++index) {
+            hash ^= value.charCodeAt(index);
+            hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0).toString(16).padStart(8, "0");
+    }
+
+    function thumbnailPath(url): string {
+        return Quickshell.cacheDir + "/video-thumbnails/" + root.thumbnailKey(url) + ".jpg";
+    }
 
     readonly property int selectedIndex: {
         const selected = String(WallpaperSettings.selectedFile);
@@ -129,12 +146,14 @@ TransientPanelWindow {
         root.thumbnailQueue = queue;
 
         const localPath = decodeURIComponent(root.thumbnailInFlight.replace(/^file:\/\//, ""));
+        const thumbnailPath = root.thumbnailPath(root.thumbnailInFlight);
         thumbnailGenProcess.exec([
             "bash",
             "-c",
-            "n=\"$(basename \"$1\")\"; t=\"/tmp/ateria_thumbs/$n.jpg\"; if [ ! -f \"$t\" ]; then mkdir -p /tmp/ateria_thumbs && nice -n 19 ffmpeg -loglevel error -y -threads 1 -i \"$1\" -map 0:v:0 -frames:v 1 -vf 'scale=640:-2' -q:v 4 \"$t\" </dev/null; fi",
+            "t=\"$2\"; if [ ! -f \"$t\" ] || [ \"$1\" -nt \"$t\" ]; then mkdir -p \"$(dirname \"$t\")\" && nice -n 19 ffmpeg -loglevel error -y -threads 1 -i \"$1\" -map 0:v:0 -frames:v 1 -vf 'scale=640:-2' -q:v 4 \"$t\" </dev/null; fi",
             "_",
-            localPath
+            localPath,
+            thumbnailPath
         ]);
     }
 
@@ -296,7 +315,7 @@ TransientPanelWindow {
                 keyNavigationEnabled: false
 
                 // Load only the visible neighborhood instead of every wallpaper.
-                cacheBuffer: Math.max(0, Math.round(height))
+                cacheBuffer: Math.max(0, Math.round(height * 0.25))
                 reuseItems: true
 
                 // Keeping the current item visible is now the view's job rather than
@@ -367,12 +386,14 @@ TransientPanelWindow {
                     readonly property string localFilePath: decodeURIComponent(String(fileUrl).replace(/^file:\/\//, ""))
                     readonly property string fileName: localFilePath.substring(localFilePath.lastIndexOf("/") + 1)
                     readonly property bool isVideo: /\.(mp4|webm|mkv|gif)$/i.test(fileName)
-                    readonly property string thumbPath: isVideo ? "file:///tmp/ateria_thumbs/" + fileName + ".jpg" : String(fileUrl)
+                    readonly property string thumbPath: isVideo ? "file://" + root.thumbnailPath(fileUrl) : String(fileUrl)
 
                     function requestThumbnail(): void {
                         if (delegateRoot.isVideo)
                             root.requestVideoThumbnail(delegateRoot.fileUrl);
                     }
+
+                    Component.onCompleted: requestThumbnail()
 
                     width: wallpaperList.width
                     height: thumbImg.status === Image.Error && !isVideo ? 0 : Math.max(1, Math.round(width / root.screenRatio))

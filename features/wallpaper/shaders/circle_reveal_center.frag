@@ -7,9 +7,14 @@ layout(std140, binding = 0) uniform buf {
     float aspect;
     float progress;
     float variant;
+    vec4 crop1;
+    vec4 crop2;
 };
 layout(binding = 1) uniform sampler2D source1;
 layout(binding = 2) uniform sampler2D source2;
+
+vec4 sample1(vec2 uv) { return texture(source1, uv * crop1.xy + crop1.zw); }
+vec4 sample2(vec2 uv) { return texture(source2, uv * crop2.xy + crop2.zw); }
 
 void main() {
     vec2 uv = qt_TexCoord0;
@@ -50,11 +55,11 @@ void main() {
     float edgeBand = 1.0 - smoothstep(0.0, edge * 2.8, abs(signedDistance));
     vec2 direction = p / max(distanceFromCenter, 0.001);
     vec2 refraction = direction * edgeBand * 0.006;
-    vec4 outgoing = texture(source1, uv + refraction);
-    vec4 incoming = texture(source2, uv - refraction);
+    vec4 outgoing = sample1(uv + refraction);
+    vec4 incoming = sample2(uv - refraction);
     vec4 color = mix(outgoing, incoming, reveal);
 
     // Keep the edge neutral so it works with any generated colour scheme.
     color.rgb += (vec3(1.0) - color.rgb) * edgeBand * 0.08;
-    fragColor = color * qt_Opacity;
+    fragColor = vec4(color.rgb * qt_Opacity, 1.0);
 }
