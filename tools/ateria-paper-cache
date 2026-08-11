@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Reconcile and build Ateria's display-sized video wallpaper cache."""
+"""Reconcile and build Ateria's display-sized wallpaper caches."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import fcntl
 from fractions import Fraction
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -18,8 +19,8 @@ import tempfile
 import time
 
 
-MANIFEST_VERSION = 3
-CACHE_VERSION = 4
+MANIFEST_VERSION = 1
+CACHE_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 MAX_FRAME_RATE = Fraction(30, 1)
 THUMBNAIL_VERSION = 1
@@ -27,6 +28,8 @@ THUMBNAIL_WIDTH = 640
 HARDWARE_QP = 20
 SOFTWARE_CRF = 20
 SOFTWARE_PRESET = "medium"
+IMAGE_CACHE_VERSION = 1
+IMAGE_CACHE_LIMIT = 8
 
 
 def emit(payload: dict[str, object]) -> None:
@@ -89,6 +92,36 @@ def probe_video(path: Path) -> dict[str, object]:
     }
 
 
+def probe_image(path: Path) -> dict[str, int]:
+    result = subprocess.run(
+        background_command_prefix() + [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height",
+            "-of",
+            "json",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(result.stdout)
+    streams = payload.get("streams", [])
+    if not streams:
+        raise ValueError("no image stream")
+
+    width = int(streams[0]["width"])
+    height = int(streams[0]["height"])
+    if width < 1 or height < 1:
+        raise ValueError("invalid image metadata")
+    return {"width": width, "height": height}
+
+
 def parse_frame_rate(*values: object) -> Fraction:
     for value in values:
         try:
@@ -113,6 +146,14 @@ def target_dimensions(width: int, height: int, max_width: int, max_height: int) 
     return target_width, target_height
 
 
+def image_target_dimensions(width: int, height: int, max_width: int, max_height: int) -> tuple[int, int]:
+    # Images do not need the even dimensions required by common video codecs.
+    # Round upward so the cached image always covers the output in both axes
+    # and PreserveAspectCrop never has to upscale it by a fractional pixel.
+    scale = min(Fraction(1), max(Fraction(max_width, width), Fraction(max_height, height)))
+    return max(1, math.ceil(width * scale)), max(1, math.ceil(height * scale))
+
+
 def cache_identity(
     path: Path,
     stat: os.stat_result,
@@ -128,6 +169,20 @@ def cache_identity(
         str(height),
         str(parse_frame_rate(frame_rate)),
         str(CACHE_VERSION),
+    )
+    digest = hashlib.sha256()
+    digest.update("\0".join(fields).encode("utf-8", errors="surrogateescape"))
+    return digest.hexdigest()
+
+
+def image_cache_identity(path: Path, stat: os.stat_result, width: int, height: int) -> str:
+    fields = (
+        str(path),
+        str(stat.st_size),
+        str(stat.st_mtime_ns),
+        str(width),
+        str(height),
+        str(IMAGE_CACHE_VERSION),
     )
     digest = hashlib.sha256()
     digest.update("\0".join(fields).encode("utf-8", errors="surrogateescape"))
@@ -286,6 +341,106 @@ def validate_cached_video(path: Path, width: int, height: int) -> bool:
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, json.JSONDecodeError):
         return False
     return metadata["width"] == width and metadata["height"] == height
+
+
+def cleanup_image_cache(cache_dir: Path, retained_path: Path | None) -> None:
+    for partial_path in cache_dir.glob("*.partial.*"):
+        partial_path.unlink(missing_ok=True)
+
+    cached_paths = []
+    for path in cache_dir.glob("*.png"):
+        try:
+            cached_paths.append((path.stat().st_mtime_ns, path))
+        except OSError:
+            continue
+    cached_paths.sort(reverse=True)
+
+    ordered: list[Path] = []
+    if retained_path is not None and retained_path.is_file():
+        ordered.append(retained_path)
+    ordered.extend(path for _, path in cached_paths if path != retained_path)
+    for path in ordered[IMAGE_CACHE_LIMIT:]:
+        path.unlink(missing_ok=True)
+
+
+def generate_image_cache(args: argparse.Namespace) -> int:
+    source = Path(args.source).expanduser().absolute()
+    cache_dir = Path(args.cache_dir).expanduser().resolve()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        stat = source.stat()
+        metadata = probe_image(source)
+        source_width = int(metadata["width"])
+        source_height = int(metadata["height"])
+        target_width, target_height = image_target_dimensions(
+            source_width, source_height, args.width, args.height
+        )
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, json.JSONDecodeError) as error:
+        emit({"type": "error", "message": str(error)})
+        return 2
+
+    payload: dict[str, object] = {
+        "type": "imageReady",
+        "sourceWidth": source_width,
+        "sourceHeight": source_height,
+        "targetWidth": target_width,
+        "targetHeight": target_height,
+    }
+    if target_width == source_width and target_height == source_height:
+        cleanup_image_cache(cache_dir, None)
+        emit(payload | {"playbackPath": str(source), "generated": False})
+        return 0
+
+    identity = image_cache_identity(source, stat, target_width, target_height)
+    target_path = cache_dir / f"{identity}.png"
+    if is_nonempty_file(target_path):
+        # Cache files are installed atomically below. Touch the identity match
+        # to maintain the small least-recently-used cache.
+        os.utime(target_path, None)
+        cleanup_image_cache(cache_dir, target_path)
+        emit(payload | {"playbackPath": str(target_path), "generated": True})
+        return 0
+
+    temporary_path = cache_dir / f"{identity}.partial.{os.getpid()}.png"
+    temporary_path.unlink(missing_ok=True)
+    command = background_command_prefix() + [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-threads",
+        "1",
+        "-i",
+        str(source),
+        "-map",
+        "0:v:0",
+        "-map_metadata",
+        "0",
+        "-frames:v",
+        "1",
+        "-vf",
+        f"scale={target_width}:{target_height}:flags=lanczos+accurate_rnd+full_chroma_int",
+        "-c:v",
+        "png",
+        "-compression_level",
+        "9",
+        "-pred",
+        "mixed",
+        "-threads",
+        "1",
+        str(temporary_path),
+    ]
+    result = subprocess.run(command, check=False, capture_output=True, text=True)
+    if result.returncode != 0 or not is_nonempty_file(temporary_path):
+        temporary_path.unlink(missing_ok=True)
+        emit({"type": "error", "message": result.stderr.strip() or "image cache generation failed"})
+        return 3
+
+    os.replace(temporary_path, target_path)
+    cleanup_image_cache(cache_dir, target_path)
+    emit(payload | {"playbackPath": str(target_path), "generated": True})
+    return 0
 
 
 def scan(args: argparse.Namespace) -> int:
@@ -694,6 +849,12 @@ def parser() -> argparse.ArgumentParser:
     thumbnail_command.add_argument("cache_dir")
     thumbnail_command.add_argument("source")
     thumbnail_command.add_argument("input", nargs="?")
+
+    image_command = subparsers.add_parser("image")
+    image_command.add_argument("cache_dir")
+    image_command.add_argument("width", type=int)
+    image_command.add_argument("height", type=int)
+    image_command.add_argument("source")
     return root
 
 
@@ -708,7 +869,9 @@ def main() -> int:
             return scan(args)
         if args.command == "transcode":
             return transcode(args)
-        return generate_thumbnail(args)
+        if args.command == "thumbnail":
+            return generate_thumbnail(args)
+        return generate_image_cache(args)
 
 
 if __name__ == "__main__":

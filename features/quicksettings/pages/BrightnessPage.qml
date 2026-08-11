@@ -10,6 +10,10 @@ M3Panel {
 
     property var controller: null
 
+    // This page is loaded lazily, so opening it is a useful and infrequent
+    // point at which to synchronize both backends with the hardware.
+    Component.onCompleted: BrightnessService.refresh()
+
     implicitHeight: Math.min(450, header.implicitHeight + Metrics.spacingXs + monitorColumn.implicitHeight + 16)
 
     component BrightnessMonitorRow: Rectangle {

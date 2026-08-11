@@ -9,9 +9,11 @@ Singleton {
     id: root
 
     readonly property string cachePath: Quickshell.cachePath("video-wallpapers")
-    readonly property string cacheToolPath: root.localPath(Quickshell.shellPath("tools/ateria-video-cache"))
+    readonly property string imageCachePath: Quickshell.cachePath("image-wallpapers")
+    readonly property string cacheToolPath: root.localPath(Quickshell.shellPath("tools/ateria-paper-cache"))
     readonly property bool busy: scanProcess.running || workerProcess.running
-        || reconcileTimer.running || jobDelay.running
+        || imageProcess.running || reconcileTimer.running || imageReconcileTimer.running
+        || jobDelay.running
     readonly property bool canTranscode: !PowerService.powerSaver && (root.hardwareAvailable || PowerService.onExternalPower)
     property bool hardwareAvailable: false
     property var entries: ({})
@@ -29,6 +31,9 @@ Singleton {
     property int consecutiveThumbnails: 0
     property bool startupGracePending: true
     property bool expeditedWorkRequested: false
+    property var imageEntries: ({})
+    property var pendingImageRequest: null
+    property var activeImageRequest: null
 
     readonly property int initialJobDelay: 250
     readonly property int startupJobDelay: 2500
@@ -49,6 +54,100 @@ Singleton {
 
     function isVideo(source): bool {
         return /\.(mp4|webm|mkv|gif)$/i.test(String(source));
+    }
+
+    function isImage(source): bool {
+        return /\.(png|jpe?g|webp)$/i.test(String(source));
+    }
+
+    function isLocalFile(source): bool {
+        const value = String(source ?? "");
+        return value.startsWith("file:") || value.startsWith("/");
+    }
+
+    function imagePlaybackSource(source): string {
+        const entry = root.imageEntries[String(source)] ?? null;
+        return entry !== null ? String(entry.playbackSource ?? "") : "";
+    }
+
+    function prepareImage(source, width, height): void {
+        const sourceUrl = String(source ?? "");
+        if (!root.isImage(sourceUrl) || !root.isLocalFile(sourceUrl))
+            return;
+
+        root.pendingImageRequest = {
+            "source": sourceUrl,
+            "localPath": root.localPath(sourceUrl),
+            "width": Math.max(1, Math.round(Number(width) || 1920)),
+            "height": Math.max(1, Math.round(Number(height) || 1080))
+        };
+        if ((root.imageEntries[sourceUrl] ?? null) === null)
+            root.updateImageEntry(sourceUrl, {"status": "checking", "playbackSource": "", "error": ""});
+        imageReconcileTimer.restart();
+    }
+
+    function updateImageEntry(source, changes): void {
+        const updatedEntries = Object.assign({}, root.imageEntries);
+        updatedEntries[String(source)] = Object.assign({}, updatedEntries[String(source)] ?? {}, changes);
+        root.imageEntries = updatedEntries;
+    }
+
+    function startImagePrepare(): void {
+        if (imageProcess.running || root.pendingImageRequest === null)
+            return;
+
+        const request = root.pendingImageRequest;
+        root.pendingImageRequest = null;
+        root.activeImageRequest = request;
+        imageProcess.exec([
+            root.cacheToolPath,
+            "image",
+            root.imageCachePath,
+            String(request.width),
+            String(request.height),
+            request.localPath
+        ]);
+    }
+
+    function finishImagePrepare(exitCode): void {
+        const request = root.activeImageRequest;
+        root.activeImageRequest = null;
+        if (request === null)
+            return;
+
+        let payload = null;
+        if (exitCode === 0) {
+            try {
+                payload = JSON.parse(String(imageOutput.text).trim());
+            } catch (error) {
+                payload = null;
+            }
+        }
+
+        const playbackPath = String(payload?.playbackPath ?? "");
+        if (payload?.type === "imageReady" && playbackPath.length > 0) {
+            root.updateImageEntry(request.source, {
+                "status": payload.generated === true ? "ready" : "original",
+                "playbackSource": root.fileUrl(playbackPath),
+                "sourceWidth": Number(payload.sourceWidth ?? 0),
+                "sourceHeight": Number(payload.sourceHeight ?? 0),
+                "targetWidth": Number(payload.targetWidth ?? 0),
+                "targetHeight": Number(payload.targetHeight ?? 0),
+                "error": ""
+            });
+        } else {
+            const detail = String(imageError.text).trim();
+            root.updateImageEntry(request.source, {
+                "status": "failed",
+                // Image caching is an optimization. Preserve the wallpaper if
+                // ffprobe/ffmpeg is unavailable or the source is unsupported.
+                "playbackSource": request.source,
+                "error": detail.length > 0 ? detail : qsTr("Image cache generation failed")
+            });
+        }
+
+        if (root.pendingImageRequest !== null)
+            imageReconcileTimer.restart();
     }
 
     function entryFor(source): var {
@@ -453,6 +552,14 @@ Singleton {
     }
 
     Timer {
+        id: imageReconcileTimer
+
+        interval: 50
+        repeat: false
+        onTriggered: root.startImagePrepare()
+    }
+
+    Timer {
         id: jobDelay
 
         interval: root.initialJobDelay
@@ -486,5 +593,19 @@ Singleton {
             waitForEnd: true
         }
         onExited: exitCode => root.finishWorker(exitCode)
+    }
+
+    Process {
+        id: imageProcess
+
+        stdout: StdioCollector {
+            id: imageOutput
+            waitForEnd: true
+        }
+        stderr: StdioCollector {
+            id: imageError
+            waitForEnd: true
+        }
+        onExited: exitCode => root.finishImagePrepare(exitCode)
     }
 }

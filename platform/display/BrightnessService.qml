@@ -9,7 +9,12 @@ Singleton {
     id: root
 
     // Configuration
+    // Internal brightness is cheap to sample and can also change through
+    // hardware keys outside this shell. DDC probing is much more expensive,
+    // so keep it on a separate, slower safety interval.
     property int refreshInterval: 30000
+    property int externalRefreshInterval: 300000
+    property int displayChangeDebounce: 750
     property int writeDebounce: 80
     property real brightnessStep: 0.05
     // Prevent accidentally turning a laptop panel completely black.
@@ -34,10 +39,39 @@ Singleton {
     property var currentExternalQuery: null
     property var currentExternalWrite: null
     property bool externalRefreshPending: false
+    property bool componentReady: false
+    readonly property string connectedScreenSignature: root.screenSignature()
+    readonly property bool hasPotentialExternalScreen: root.detectPotentialExternalScreen()
 
     signal commandFailed(string backend, string message)
 
     // General helpers
+    function isInternalScreenName(name: string): bool {
+        const normalized = String(name ?? "").trim();
+        return /^(edp|lvds|dsi)/i.test(normalized) || normalized.toLowerCase().includes("internal");
+    }
+
+    function screenSignature(): string {
+        const identities = [];
+        for (const screen of Quickshell.screens) {
+            identities.push([
+                String(screen?.name ?? ""),
+                String(screen?.model ?? ""),
+                String(screen?.serialNumber ?? screen?.serial ?? "")
+            ].join("\u001f"));
+        }
+        identities.sort();
+        return identities.join("\u001e");
+    }
+
+    function detectPotentialExternalScreen(): bool {
+        for (const screen of Quickshell.screens) {
+            if (!root.isInternalScreenName(screen?.name))
+                return true;
+        }
+        return false;
+    }
+
     function clamp(value: real, minimum: real, maximum: real): real {
         return Math.max(minimum, Math.min(maximum, value));
     }
@@ -56,7 +90,7 @@ Singleton {
             return root.primaryDisplay;
 
         const screenName = String(screen.name ?? "").trim().toLowerCase();
-        const isInternalScreen = /^(edp|lvds|dsi)/i.test(screenName) || screenName.includes("internal");
+        const isInternalScreen = root.isInternalScreenName(screenName);
 
         if (isInternalScreen && root.internalDisplays.length > 0)
             return root.internalDisplays[0];
@@ -158,6 +192,16 @@ Singleton {
     }
 
     function refreshExternal() {
+        // DDC/I2C probing is unnecessary on machines that currently expose
+        // only internal panels. A Quickshell screen-list change will schedule
+        // detection as soon as an external output appears.
+        if (!root.hasPotentialExternalScreen) {
+            root.externalRefreshPending = false;
+            root.externalQueryQueue = [];
+            root.externalDisplays = [];
+            return;
+        }
+
         if (externalDetectProcess.running || externalQueryProcess.running || externalWriteProcess.running || root.currentExternalQuery !== null || root.currentExternalWrite !== null || root.externalWriteQueue.length > 0) {
             root.externalRefreshPending = true;
             return;
@@ -515,7 +559,14 @@ Singleton {
         root.runNextExternalWrite();
     }
 
-    Component.onCompleted: root.refresh()
+    Component.onCompleted: {
+        root.componentReady = true;
+        root.refresh();
+    }
+    onConnectedScreenSignatureChanged: {
+        if (root.componentReady)
+            displayChangeTimer.restart();
+    }
 
     // Processes
     Process {
@@ -616,6 +667,21 @@ Singleton {
         interval: Math.max(1000, root.refreshInterval)
         running: root.refreshInterval > 0
         repeat: true
+        onTriggered: root.refreshInternal()
+    }
+
+    Timer {
+        interval: Math.max(1000, root.externalRefreshInterval)
+        running: root.externalRefreshInterval > 0 && root.hasPotentialExternalScreen
+        repeat: true
+        onTriggered: root.refreshExternal()
+    }
+
+    Timer {
+        id: displayChangeTimer
+
+        interval: Math.max(0, root.displayChangeDebounce)
+        repeat: false
         onTriggered: root.refresh()
     }
 

@@ -53,11 +53,19 @@ Singleton {
     // is a video and is never meant to reach the screen.
     readonly property url source: !SettingsService.ready ? root.bundledSource : (WallpaperSettings.selectedFile.length > 0 ? WallpaperSettings.selectedFile : root.defaultFileFromFolder)
     readonly property url playbackSource: {
+        if (WallpaperCacheService.isImage(root.source) && WallpaperCacheService.isLocalFile(root.source)) {
+            const cachedImage = WallpaperCacheService.imagePlaybackSource(root.source);
+            // Never decode an oversized original just to replace it with the
+            // display-sized cache moments later. An empty pending source keeps
+            // the previous wallpaper active, or the window's black background
+            // during first startup.
+            return cachedImage.length > 0 ? cachedImage : "";
+        }
         if (!WallpaperCacheService.isVideo(root.source))
             return root.source;
 
         const cachedSource = WallpaperCacheService.playbackSource(root.source);
-        return cachedSource.length > 0 ? cachedSource : root.bundledSource;
+        return cachedSource.length > 0 ? cachedSource : "";
     }
     property bool initialized: false
     property bool initialVideoReconcilePending: true
@@ -103,17 +111,38 @@ Singleton {
 
         root.initialized = true;
         MatugenService.request(root.source);
+        root.prepareCurrentImage();
         root.scheduleWallpaperVideoReconcile();
+    }
+
+    function prepareCurrentImage(): void {
+        if (!root.initialized || !SettingsService.ready)
+            return;
+        // With no explicit selection, wait until the folder model has either
+        // produced its first wallpaper or confirmed that the bundled fallback
+        // is genuinely needed. This avoids preparing a transient fallback.
+        if (WallpaperSettings.selectedFile.length === 0
+                && wallpaperModel.status !== FolderListModel.Ready)
+            return;
+
+        WallpaperCacheService.prepareImage(root.source, root.largestScreenWidth, root.largestScreenHeight);
     }
 
     onSourceChanged: {
         if (root.initialized)
             MatugenService.request(root.source);
+        root.prepareCurrentImage();
         root.scheduleWallpaperVideoReconcile();
     }
     onCurrentFolderChanged: root.scheduleWallpaperVideoReconcile()
-    onLargestScreenWidthChanged: root.scheduleWallpaperVideoReconcile()
-    onLargestScreenHeightChanged: root.scheduleWallpaperVideoReconcile()
+    onLargestScreenWidthChanged: {
+        root.prepareCurrentImage();
+        root.scheduleWallpaperVideoReconcile();
+    }
+    onLargestScreenHeightChanged: {
+        root.prepareCurrentImage();
+        root.scheduleWallpaperVideoReconcile();
+    }
 
     Timer {
         id: videoReconcileTimer
@@ -133,13 +162,24 @@ Singleton {
     }
 
     Connections {
+        target: SettingsService
+
+        function onReadyChanged(): void {
+            if (SettingsService.ready)
+                root.prepareCurrentImage();
+        }
+    }
+
+    Connections {
         target: wallpaperModel
 
         function onCountChanged(): void {
+            root.prepareCurrentImage();
             root.scheduleWallpaperVideoReconcile();
         }
 
         function onStatusChanged(): void {
+            root.prepareCurrentImage();
             root.scheduleWallpaperVideoReconcile();
         }
     }
