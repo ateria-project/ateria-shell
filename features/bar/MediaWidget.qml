@@ -29,6 +29,8 @@ Rectangle {
     property int pendingArtworkSlot: -1
     property string requestedArtworkUrl: ""
     property bool artworkInitialized: false
+    property string pendingArtworkRotationKey: ""
+    property string rotatedArtworkKey: ""
     property bool initialMarqueeActive: false
 
     readonly property bool isActive: MprisService.available && (!MediaSettings.hideWhenInactive || !root.inactiveHidden)
@@ -82,22 +84,25 @@ Rectangle {
         previous.source = "";
     }
 
-    function updateArtworkRotation() {
-        if (!root.isActive || !root.activeArtworkReady) {
-            artworkRotation.stop();
-            return;
-        }
+    function scheduleArtworkRotation() {
+        root.pendingArtworkRotationKey = [
+            MprisService.identity,
+            MprisService.displayText,
+            MprisService.artworkUrl
+        ].join("\u001f");
 
-        if (!root.playing) {
-            if (artworkRotation.running && !artworkRotation.paused)
-                artworkRotation.pause();
-            return;
-        }
+        // MPRIS metadata properties commonly change together. Wait until the
+        // current event-loop turn is complete so they produce one rotation.
+        Qt.callLater(root.startArtworkRotation);
+    }
 
-        if (!artworkRotation.running)
-            artworkRotation.start();
-        else if (artworkRotation.paused)
-            artworkRotation.resume();
+    function startArtworkRotation() {
+        const key = root.pendingArtworkRotationKey;
+        if (key.length === 0 || key === root.rotatedArtworkKey || !root.isActive || !root.activeArtworkReady)
+            return;
+
+        root.rotatedArtworkKey = key;
+        artworkRotation.restart();
     }
 
     function stopMarquee() {
@@ -185,15 +190,14 @@ Rectangle {
 
     onPlayingChanged: {
         root.updateInactivityState();
-        root.updateArtworkRotation();
     }
-    onIsActiveChanged: root.updateArtworkRotation()
-    onActiveArtworkReadyChanged: root.updateArtworkRotation()
+    onIsActiveChanged: root.startArtworkRotation()
+    onActiveArtworkReadyChanged: root.startArtworkRotation()
     onHoveredChanged: root.updateMarquee()
     Component.onCompleted: {
         root.updateInactivityState();
         root.updateArtwork(MprisService.artworkUrl);
-        root.updateArtworkRotation();
+        root.scheduleArtworkRotation();
         root.requestInitialMarquee();
     }
 
@@ -202,6 +206,11 @@ Rectangle {
 
         function onArtworkUrlChanged() {
             root.updateArtwork(MprisService.artworkUrl);
+            root.scheduleArtworkRotation();
+        }
+
+        function onDisplayTextChanged() {
+            root.scheduleArtworkRotation();
         }
 
         function onAvailableChanged() {
@@ -398,7 +407,7 @@ Rectangle {
         from: 0
         to: 360
         duration: 12000
-        loops: Animation.Infinite
+        loops: 1
         easing.type: Easing.Linear
     }
 
