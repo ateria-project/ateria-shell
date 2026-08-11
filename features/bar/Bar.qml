@@ -3,6 +3,7 @@ import Quickshell
 import qs.features.notifications.components
 import qs.platform.workspace
 import qs.theme
+import "tray"
 import "workspace"
 import "workspace/WorkspaceLayout.js" as WorkspaceLayout
 
@@ -117,13 +118,21 @@ PanelWindow {
             verticalCenter: parent.verticalCenter
         }
 
-        NotificationIndicator {
+        SystemTrayWidget {
+            id: systemTray
+
             anchors.verticalCenter: parent.verticalCenter
-            screen: window.screen
+            expanded: BarSettings.systemTrayExpanded
+            onExpandedRequested: expanded => BarSettings.setSystemTrayExpanded(expanded)
         }
 
         MediaWidget {
             anchors.verticalCenter: parent.verticalCenter
+        }
+
+        NotificationIndicator {
+            anchors.verticalCenter: parent.verticalCenter
+            screen: window.screen
         }
 
         StatusArea {

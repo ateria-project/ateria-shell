@@ -36,6 +36,14 @@ QtObject {
                 description: qsTr("Displays application icons instead of app initials in the window switcher."),
                 group: "bar",
                 order: 20
+            },
+            "systemTrayExpanded": {
+                type: "bool",
+                defaultValue: false,
+                label: qsTr("Expand System Tray"),
+                description: qsTr("Keeps the system tray expanded across shell restarts."),
+                group: "bar",
+                order: 25
             }
         })
 
@@ -43,6 +51,7 @@ QtObject {
     readonly property bool showWorkspaceNumbers: SettingsService.value("bar", "showWorkspaceNumbers")
     readonly property bool showWorkspaceNumbersOnHover: SettingsService.value("bar", "showWorkspaceNumbersOnHover")
     readonly property bool useAppIcons: SettingsService.value("bar", "useAppIcons")
+    readonly property bool systemTrayExpanded: SettingsService.value("bar", "systemTrayExpanded")
 
     function setCombineWorkspacesAndWindows(value) {
         return SettingsService.setValue("bar", "combineWorkspacesAndWindows", value);
@@ -74,5 +83,13 @@ QtObject {
 
     function resetUseAppIcons() {
         return SettingsService.reset("bar", "useAppIcons");
+    }
+
+    function setSystemTrayExpanded(value) {
+        return SettingsService.setValue("bar", "systemTrayExpanded", value);
+    }
+
+    function resetSystemTrayExpanded() {
+        return SettingsService.reset("bar", "systemTrayExpanded");
     }
 }
