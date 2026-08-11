@@ -4,7 +4,9 @@
 
 // Portable defaults for the Ateria desktop.
 
-spawn-at-startup "qs"
+// Prefer the low-power VAAPI path on Intel and AMD render nodes. Qt falls back
+// to its normal backend on systems where one is not present.
+spawn-at-startup "sh" "-c" "for node in /sys/class/drm/renderD*/device/driver; do [ -e \"$node\" ] || continue; driver=$(readlink -f \"$node\") || continue; driver=${driver##*/}; case \"$driver\" in amdgpu|i915|xe) export QT_FFMPEG_DECODING_HW_DEVICE_TYPES=vaapi QT_FFMPEG_ENCODING_HW_DEVICE_TYPES=vaapi; break;; esac; done; exec qs"
 
 input {
     keyboard {

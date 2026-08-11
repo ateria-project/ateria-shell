@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Io
 import Quickshell.Wayland
 import qs.components
 import qs.features.launcher.components
@@ -40,25 +39,6 @@ TransientPanelWindow {
         id: controller
 
         query: searchField.text
-    }
-
-    IpcHandler {
-        target: "launcher"
-
-        function open(): void {
-            SurfaceController.openLauncher(root.fallbackScreen);
-        }
-
-        function close(): void {
-            SurfaceController.closeLauncher();
-        }
-
-        function toggle(): void {
-            if (SurfaceController.launcherOpen)
-                SurfaceController.closeLauncher();
-            else
-                SurfaceController.openLauncher(root.fallbackScreen);
-        }
     }
 
     function closeLauncher() {

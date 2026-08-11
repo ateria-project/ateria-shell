@@ -46,7 +46,13 @@ void main() {
     float verticalEdge = (1.0 - smoothstep(0.0, edge, abs(distanceFromCenter.y - halfHeight))) * (1.0 - outsideX);
     float glow = max(horizontalEdge, verticalEdge) * smoothstep(0.03, 0.16, progress) * (1.0 - smoothstep(0.84, 1.0, progress));
 
-    vec4 color = mix(sample1(uv), sample2(uv), reveal);
+    vec4 color;
+    if (reveal <= 0.0)
+        color = sample1(uv);
+    else if (reveal >= 1.0)
+        color = sample2(uv);
+    else
+        color = mix(sample1(uv), sample2(uv), reveal);
     color.rgb += (vec3(1.0) - color.rgb) * glow * 0.12;
     fragColor = vec4(color.rgb * qt_Opacity, 1.0);
 }

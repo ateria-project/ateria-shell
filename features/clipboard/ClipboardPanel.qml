@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
-import Quickshell.Io
 import Quickshell.Wayland
 import qs.components
 import qs.features.clipboard.components
@@ -42,29 +41,6 @@ TransientPanelWindow {
         id: controller
 
         query: searchField.text
-    }
-
-    IpcHandler {
-        target: "clipboard"
-
-        function open(): void {
-            SurfaceController.openClipboard(root.fallbackScreen);
-        }
-
-        function close(): void {
-            SurfaceController.closeClipboard();
-        }
-
-        function toggle(): void {
-            if (SurfaceController.clipboardOpen)
-                SurfaceController.closeClipboard();
-            else
-                SurfaceController.openClipboard(root.fallbackScreen);
-        }
-
-        function clear(): void {
-            ClipboardService.clear();
-        }
     }
 
     function closeClipboard() {

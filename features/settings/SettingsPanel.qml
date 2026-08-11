@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import Quickshell.Io
 import Quickshell.Wayland
 import qs.components
 import qs.features.settings.components
@@ -77,22 +76,6 @@ TransientPanelWindow {
 
         function onSelectedNamespaceChanged() {
             root.showCategory(settingsController.selectedNamespace);
-        }
-    }
-
-    IpcHandler {
-        target: "settings"
-
-        function open(): void {
-            SurfaceController.openSettings(root.fallbackScreen);
-        }
-
-        function close(): void {
-            SurfaceController.closeSettings();
-        }
-
-        function toggle(): void {
-            SurfaceController.toggleSettings(root.fallbackScreen);
         }
     }
 

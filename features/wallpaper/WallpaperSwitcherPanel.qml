@@ -6,10 +6,10 @@ import QtQuick.Layouts
 import QtQuick.Window
 import Qt.labs.folderlistmodel
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
 import qs.components
+import qs.platform.wallpaper
 import qs.platform.workspace
 import qs.shell
 import qs.theme
@@ -25,29 +25,8 @@ TransientPanelWindow {
     // delegates may be destroyed/reused while scrolling.
     property var failedWallpapers: ({})
     property bool lastCycleForward: true
-    property var thumbnailQueue: []
-    property var queuedThumbnails: ({})
-    property string thumbnailInFlight: ""
     property string pendingVideoSelection: ""
     readonly property var wallpaperModel: WallpaperController.wallpapers
-
-    signal thumbnailReady(string fileUrl)
-
-    function thumbnailKey(url): string {
-        // FNV-1a keeps cache names short while hashing the complete URL, so
-        // equal basenames in different folders cannot collide.
-        const value = String(url);
-        let hash = 2166136261;
-        for (let index = 0; index < value.length; ++index) {
-            hash ^= value.charCodeAt(index);
-            hash = Math.imul(hash, 16777619);
-        }
-        return (hash >>> 0).toString(16).padStart(8, "0");
-    }
-
-    function thumbnailPath(url): string {
-        return Quickshell.cacheDir + "/video-thumbnails/" + root.thumbnailKey(url) + ".jpg";
-    }
 
     readonly property int selectedIndex: {
         const selected = String(WallpaperSettings.selectedFile);
@@ -83,6 +62,9 @@ TransientPanelWindow {
 
     function selectWallpaper(url, isVideo): void {
         const selectedUrl = String(url);
+        if (isVideo && !WallpaperCacheService.isSelectable(selectedUrl))
+            return;
+
         if (isVideo) {
             // Close without starting MediaPlayer work. Once the panel is gone,
             // the wallpaper renderer can load and reveal the video smoothly.
@@ -125,54 +107,6 @@ TransientPanelWindow {
             Qt.callLater(() => root.cycleWallpaper(root.lastCycleForward));
     }
 
-    function requestVideoThumbnail(url): void {
-        const key = String(url);
-        if (key.length === 0 || key === root.thumbnailInFlight || root.queuedThumbnails[key] === true)
-            return;
-
-        const queued = Object.assign({}, root.queuedThumbnails);
-        queued[key] = true;
-        root.queuedThumbnails = queued;
-        root.thumbnailQueue = root.thumbnailQueue.concat([key]);
-        root.startNextThumbnail();
-    }
-
-    function startNextThumbnail(): void {
-        if (thumbnailGenProcess.running || root.thumbnailQueue.length === 0)
-            return;
-
-        const queue = root.thumbnailQueue.slice();
-        root.thumbnailInFlight = queue.shift();
-        root.thumbnailQueue = queue;
-
-        const localPath = decodeURIComponent(root.thumbnailInFlight.replace(/^file:\/\//, ""));
-        const thumbnailPath = root.thumbnailPath(root.thumbnailInFlight);
-        thumbnailGenProcess.exec([
-            "bash",
-            "-c",
-            "t=\"$2\"; if [ ! -f \"$t\" ] || [ \"$1\" -nt \"$t\" ]; then mkdir -p \"$(dirname \"$t\")\" && nice -n 19 ffmpeg -loglevel error -y -threads 1 -i \"$1\" -map 0:v:0 -frames:v 1 -vf 'scale=640:-2' -q:v 4 \"$t\" </dev/null; fi",
-            "_",
-            localPath,
-            thumbnailPath
-        ]);
-    }
-
-    function finishThumbnail(): void {
-        const completedUrl = root.thumbnailInFlight;
-        root.thumbnailInFlight = "";
-
-        const queued = Object.assign({}, root.queuedThumbnails);
-        // Keep completed attempts deduplicated for this panel session. A bad
-        // video or missing ffmpeg must not create an immediate retry loop.
-        if (completedUrl.length > 0)
-            queued[completedUrl] = true;
-        root.queuedThumbnails = queued;
-
-        if (completedUrl.length > 0)
-            root.thumbnailReady(completedUrl);
-        root.startNextThumbnail();
-    }
-
     function cycleWallpaper(forward): void {
         const count = root.wallpaperModel.count;
         if (count <= 0)
@@ -187,30 +121,12 @@ TransientPanelWindow {
             searchIndex = forward ? (searchIndex + 1) % count : (searchIndex - 1 + count) % count;
 
             const nextUrl = String(root.wallpaperModel.get(searchIndex, "fileUrl"));
-            if (nextUrl.length === 0 || root.isWallpaperFailed(nextUrl))
+            if (nextUrl.length === 0 || root.isWallpaperFailed(nextUrl)
+                    || !WallpaperCacheService.isSelectable(nextUrl))
                 continue;
 
             WallpaperSettings.setSelectedFile(nextUrl);
             return;
-        }
-    }
-
-    IpcHandler {
-        target: "wallpaper"
-
-        function open(): void {
-            SurfaceController.openWallpaperSwitcher(root.fallbackScreen);
-        }
-
-        function close(): void {
-            SurfaceController.closeWallpaperSwitcher();
-        }
-
-        function toggle(): void {
-            if (SurfaceController.wallpaperSwitcherOpen)
-                SurfaceController.closeWallpaperSwitcher();
-            else
-                SurfaceController.openWallpaperSwitcher(root.fallbackScreen);
         }
     }
 
@@ -221,13 +137,13 @@ TransientPanelWindow {
     }
 
     onOpenChanged: {
-        if (!root.open) {
-            // Do not decode thumbnails that have scrolled out of view after the
-            // switcher closes. The one low-priority in-flight job may finish.
-            root.thumbnailQueue = [];
-            root.queuedThumbnails = ({});
+        if (!root.open)
             return;
-        }
+
+        // Cache discovery is deliberately deferred during shell startup. An
+        // explicit panel open makes it user-facing work and accelerates it.
+        WallpaperController.expediteWallpaperVideoReconcile();
+        WallpaperCacheService.expeditePendingWork();
 
         // Reopening during an interrupted exit cancels its deferred selection.
         root.pendingVideoSelection = "";
@@ -270,12 +186,28 @@ TransientPanelWindow {
             anchors.margins: Metrics.spacingLg
             spacing: Metrics.spacingMd
 
-            M3Text {
-                text: qsTr("Wallpapers")
-                color: Theme.scheme.onSurface
-                font.pixelSize: 20
-                font.weight: Font.Bold
+            RowLayout {
                 Layout.fillWidth: true
+
+                M3Text {
+                    text: qsTr("Wallpapers")
+                    color: Theme.scheme.onSurface
+                    font.pixelSize: 20
+                    font.weight: Font.Bold
+                    Layout.fillWidth: true
+                }
+
+                M3Button {
+                    style: M3Button.Text
+                    iconName: "refresh"
+                    iconSize: 20
+                    enabled: !WallpaperCacheService.busy && WallpaperCacheService.knownSources.length > 0
+                    Accessible.name: qsTr("Rebuild video cache")
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 350
+                    ToolTip.text: qsTr("Delete cached videos and transcode them again")
+                    onClicked: WallpaperCacheService.rebuild()
+                }
             }
 
             Connections {
@@ -283,20 +215,12 @@ TransientPanelWindow {
 
                 function onFolderChanged(): void {
                     root.failedWallpapers = ({});
-                    root.thumbnailQueue = [];
-                    root.queuedThumbnails = ({});
                 }
 
                 function onStatusChanged(): void {
                     if (root.wallpaperModel.status === FolderListModel.Ready && root.open)
                         Qt.callLater(root.positionListAtTop);
                 }
-            }
-
-            Process {
-                id: thumbnailGenProcess
-
-                onExited: root.finishThumbnail()
             }
 
             ListView {
@@ -383,17 +307,30 @@ TransientPanelWindow {
                     required property int index
                     required property url fileUrl
 
-                    readonly property string localFilePath: decodeURIComponent(String(fileUrl).replace(/^file:\/\//, ""))
-                    readonly property string fileName: localFilePath.substring(localFilePath.lastIndexOf("/") + 1)
-                    readonly property bool isVideo: /\.(mp4|webm|mkv|gif)$/i.test(fileName)
-                    readonly property string thumbPath: isVideo ? "file://" + root.thumbnailPath(fileUrl) : String(fileUrl)
-
-                    function requestThumbnail(): void {
-                        if (delegateRoot.isVideo)
-                            root.requestVideoThumbnail(delegateRoot.fileUrl);
+                    readonly property bool isVideo: WallpaperCacheService.isVideo(fileUrl)
+                    readonly property var wallpaperVideoEntry: isVideo ? WallpaperCacheService.entryFor(fileUrl) : null
+                    readonly property string cacheStatus: String(wallpaperVideoEntry?.status ?? "checking")
+                    readonly property string thumbPath: isVideo
+                        ? (wallpaperVideoEntry?.thumbnailStatus === "ready"
+                            ? String(wallpaperVideoEntry.thumbnailSource ?? "") : "")
+                        : String(fileUrl)
+                    readonly property bool selectable: !isVideo || cacheStatus === "ready" || cacheStatus === "original"
+                    readonly property bool preparing: isVideo && (cacheStatus === "checking" || cacheStatus === "queued" || cacheStatus === "converting")
+                    readonly property bool conversionFailed: isVideo && (cacheStatus === "invalid" || cacheStatus === "failed")
+                    readonly property real conversionProgress: Math.max(0, Math.min(1, Number(wallpaperVideoEntry?.progress ?? 0)))
+                    readonly property bool conversionDeterminate: cacheStatus === "converting" && conversionProgress > 0
+                    readonly property string preparationStatus: {
+                        switch (cacheStatus) {
+                        case "queued":
+                            return qsTr("Queued");
+                        case "converting":
+                            return conversionDeterminate
+                                ? qsTr("Converting %1%").arg(Math.round(conversionProgress * 100))
+                                : qsTr("Converting");
+                        default:
+                            return qsTr("Checking");
+                        }
                     }
-
-                    Component.onCompleted: requestThumbnail()
 
                     width: wallpaperList.width
                     height: thumbImg.status === Image.Error && !isVideo ? 0 : Math.max(1, Math.round(width / root.screenRatio))
@@ -419,13 +356,12 @@ TransientPanelWindow {
                                 sourceSize: Qt.size(400, Math.max(1, Math.round(400 / root.screenRatio)))
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
+                                cache: false
+                                opacity: delegateRoot.selectable ? 1 : 0.55
 
                                 onStatusChanged: {
-                                    if (status === Image.Error && !delegateRoot.isVideo) {
+                                    if (status === Image.Error && !delegateRoot.isVideo)
                                         root.markWallpaperFailed(delegateRoot.fileUrl);
-                                    } else if (status === Image.Error) {
-                                        delegateRoot.requestThumbnail();
-                                    }
                                 }
                             }
 
@@ -434,34 +370,85 @@ TransientPanelWindow {
                                 name: "movie"
                                 size: 36
                                 color: Theme.scheme.onSurface
-                                visible: delegateRoot.isVideo
+                                visible: delegateRoot.isVideo && delegateRoot.selectable
                                 filled: true
                             }
 
-                            Connections {
-                                target: root
+                            Rectangle {
+                                anchors.fill: parent
+                                color: Theme.scheme.scrim
+                                opacity: 0.32
+                                visible: !delegateRoot.selectable
+                            }
 
-                                function onThumbnailReady(fileUrl): void {
-                                    if (String(fileUrl) !== String(delegateRoot.fileUrl))
-                                        return;
+                            Loader {
+                                id: progressLoader
 
-                                    thumbImg.source = "";
-                                    Qt.callLater(() => thumbImg.source = delegateRoot.thumbPath);
+                                anchors.centerIn: parent
+                                width: Math.min(208, parent.width - Metrics.spacingLg * 2)
+                                height: 52
+                                active: delegateRoot.preparing
+                                asynchronous: false
+
+                                sourceComponent: Rectangle {
+                                    radius: Metrics.radiusMd
+                                    color: Theme.scheme.surfaceContainerHigh
+
+                                    Column {
+                                        width: parent.width - Metrics.spacingMd * 2
+                                        anchors.centerIn: parent
+                                        spacing: Metrics.spacingSm
+
+                                        M3Text {
+                                            width: parent.width
+                                            text: delegateRoot.preparationStatus
+                                            color: Theme.scheme.onSurface
+                                            font.pixelSize: 12
+                                            font.weight: Font.Medium
+                                            horizontalAlignment: Text.AlignHCenter
+                                            elide: Text.ElideRight
+                                        }
+
+                                        M3ProgressBar {
+                                            width: parent.width
+                                            progress: delegateRoot.conversionProgress
+                                            indeterminate: !delegateRoot.conversionDeterminate
+                                            phaseOffset: (delegateRoot.index * 0.173) % 1
+                                            accessibleName: delegateRoot.preparationStatus
+                                        }
+                                    }
                                 }
                             }
+
+                            M3Icon {
+                                anchors.centerIn: parent
+                                name: "error"
+                                size: 34
+                                color: Theme.scheme.error
+                                visible: delegateRoot.conversionFailed
+                                filled: true
+                            }
+
                         }
 
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: true
+                            cursorShape: delegateRoot.selectable ? Qt.PointingHandCursor : Qt.ForbiddenCursor
+                            ToolTip.visible: containsMouse && !delegateRoot.selectable
+                            ToolTip.delay: 350
+                            ToolTip.text: WallpaperCacheService.statusText(delegateRoot.fileUrl)
 
-                            onClicked: root.selectWallpaper(delegateRoot.fileUrl, delegateRoot.isVideo)
+                            onClicked: {
+                                if (delegateRoot.selectable)
+                                    root.selectWallpaper(delegateRoot.fileUrl, delegateRoot.isVideo);
+                            }
 
                             Rectangle {
                                 anchors.fill: parent
                                 radius: 12
                                 color: Theme.scheme.onSurface
-                                opacity: parent.containsMouse ? 0.1 : 0.0
+                                opacity: parent.containsMouse && delegateRoot.selectable ? 0.1 : 0.0
                             }
                         }
                     }

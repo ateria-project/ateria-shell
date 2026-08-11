@@ -34,10 +34,8 @@ void main() {
     vec2 scale = vec2(aspect, 1.0);
     vec2 p = (uv - origin) * scale;
     float distanceFromCenter = length(p);
-    float maxDistance = max(
-        max(length(-origin * scale), length((vec2(1.0, 0.0) - origin) * scale)),
-        max(length((vec2(0.0, 1.0) - origin) * scale), length((vec2(1.0) - origin) * scale))
-    );
+    vec2 farthestCorner = max(origin, vec2(1.0) - origin) * scale;
+    float maxDistance = length(farthestCorner);
     float radius = mix(-0.12, maxDistance + 0.12, progress);
 
     // Constrain the ripple to the moving front, so the wallpaper remains
@@ -50,11 +48,14 @@ void main() {
     float reveal = 1.0 - smoothstep(-edge, edge, signedDistance);
 
     float edgeBand = 1.0 - smoothstep(0.0, edge * 3.0, abs(signedDistance));
-    vec2 direction = p / max(distanceFromCenter, 0.001);
-    vec2 refraction = direction * edgeBand * 0.010;
-    vec4 outgoing = sample1(uv + refraction);
-    vec4 incoming = sample2(uv - refraction);
-    vec4 color = mix(outgoing, incoming, reveal);
+    vec4 color;
+    if (edgeBand <= 0.0) {
+        color = reveal < 0.5 ? sample1(uv) : sample2(uv);
+    } else {
+        vec2 direction = p / max(distanceFromCenter, 0.001);
+        vec2 refraction = direction * edgeBand * 0.010;
+        color = mix(sample1(uv + refraction), sample2(uv - refraction), reveal);
+    }
     color.rgb += (vec3(1.0) - color.rgb) * edgeBand * 0.06;
     fragColor = vec4(color.rgb * qt_Opacity, 1.0);
 }

@@ -11,7 +11,7 @@ import qs.theme
 PanelWindow {
     id: root
 
-    property url source: WallpaperController.source
+    property url source: WallpaperController.playbackSource
     property bool isMedia1Active: true
     property bool transitionPending: false
     property bool videoLoading: false
@@ -474,6 +474,7 @@ PanelWindow {
 
                     source: mediaRoot.source
                     videoOutput: videoOut
+                    activeAudioTrack: -1
                     loops: MediaPlayer.Infinite
                     autoPlay: true
                 }

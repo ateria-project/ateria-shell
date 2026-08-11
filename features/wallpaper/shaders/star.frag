@@ -59,17 +59,21 @@ void main() {
     float edge = 0.026;
     // The star's inner valleys need more radius than a circle to reach the
     // corners; otherwise a stale corner flashes just before completion.
-    float maxDistance = max(
-        max(length(-origin * scale), length((vec2(1.0, 0.0) - origin) * scale)),
-        max(length((vec2(0.0, 1.0) - origin) * scale), length((vec2(1.0) - origin) * scale))
-    );
+    vec2 farthestCorner = max(origin, vec2(1.0) - origin) * scale;
+    float maxDistance = length(farthestCorner);
     float maxRadius = maxDistance * 2.6;
     float radius = mix(-edge * 2.0, maxRadius + edge * 2.0, progress);
     float distanceToStar = radius < 0.0 ? edge * 3.0 : sdStar5(p, max(radius, 0.001), 0.43);
     float reveal = 1.0 - smoothstep(-edge, edge, distanceToStar);
 
     float edgeBand = 1.0 - smoothstep(0.0, edge * 2.6, abs(distanceToStar));
-    vec4 color = mix(sample1(uv), sample2(uv), reveal);
+    vec4 color;
+    if (reveal <= 0.0)
+        color = sample1(uv);
+    else if (reveal >= 1.0)
+        color = sample2(uv);
+    else
+        color = mix(sample1(uv), sample2(uv), reveal);
     color.rgb += (vec3(1.0) - color.rgb) * edgeBand * 0.10;
     fragColor = vec4(color.rgb * qt_Opacity, 1.0);
 }

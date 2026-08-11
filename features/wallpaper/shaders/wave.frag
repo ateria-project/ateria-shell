@@ -53,10 +53,13 @@ void main() {
     float reveal = 1.0 - smoothstep(-edge, edge, signedDistance);
 
     float edgeBand = 1.0 - smoothstep(0.0, edge * 2.5, abs(signedDistance));
-    vec2 refraction = travelDirection * edgeBand * 0.008;
-    vec4 outgoing = sample1(uv + refraction);
-    vec4 incoming = sample2(uv - refraction);
-    vec4 color = mix(outgoing, incoming, reveal);
+    vec4 color;
+    if (edgeBand <= 0.0) {
+        color = reveal < 0.5 ? sample1(uv) : sample2(uv);
+    } else {
+        vec2 refraction = travelDirection * edgeBand * 0.008;
+        color = mix(sample1(uv + refraction), sample2(uv - refraction), reveal);
+    }
     color.rgb += (vec3(1.0) - color.rgb) * edgeBand * 0.07;
     fragColor = vec4(color.rgb * qt_Opacity, 1.0);
 }
