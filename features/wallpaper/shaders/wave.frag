@@ -47,9 +47,10 @@ void main() {
     }
     float wave = sin(perpendicular * 8.0 + progress * 1.7 + variant * 0.7) * 0.024
         + sin(perpendicular * 18.0 - progress * 2.4 + 0.8 + variant * 1.1) * 0.010;
-    float front = mix(-0.10, 1.10, progress);
-    float signedDistance = coordinate - front + wave;
     float edge = 0.032;
+    float waveAmplitude = 0.034;
+    float front = mix(0.0, 1.0 + edge + waveAmplitude, progress);
+    float signedDistance = coordinate - front + wave;
     float reveal = 1.0 - smoothstep(-edge, edge, signedDistance);
 
     float edgeBand = 1.0 - smoothstep(0.0, edge * 2.5, abs(signedDistance));

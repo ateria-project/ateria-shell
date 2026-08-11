@@ -66,48 +66,50 @@ PanelWindow {
         return false;
     }
     readonly property bool videoPlaybackSuppressed: PowerService.powerSaver || root.hasCoveringWindows
-    // Each full-screen transition follows a Material motion role: expanding
-    // surfaces settle into place, while the directional wave keeps a more
-    // even on-screen path. Longer transformations get more time to travel.
+    // Shader progress stays linear because each effect already shapes its own
+    // motion. Longer transformations get more time to cross the display.
     readonly property var transitionGroups: [
         {
             "shader": "shaders/circle_reveal_center.frag.qsb",
-            "minDuration": 1200,
-            "maxDuration": 1450,
-            "easingType": Motion.easingEmphasizedDecelerate,
-            "easingCurve": Motion.emphasizedDecelerateCurve,
+            // The circle's radius already creates increasing visual motion as
+            // its area grows. Keep the radius itself linear so the emphasized
+            // curve does not rush through the first visible frames.
+            "minDuration": 950,
+            "maxDuration": 1100,
+            "easingType": Easing.Linear,
+            "easingCurve": [],
             "variants": [0, 1, 2, 3, 4, 5, 6, 7]
         },
         {
             "shader": "shaders/star.frag.qsb",
-            "minDuration": 1800,
-            "maxDuration": 2200,
-            "easingType": Motion.easingStandard,
-            "easingCurve": Motion.standardCurve,
+            "minDuration": 1250,
+            "maxDuration": 1450,
+            "easingType": Easing.Linear,
+            "easingCurve": [],
             "variants": [0, 1, 2, 3, 4, 5]
         },
         {
             "shader": "shaders/wave.frag.qsb",
-            "minDuration": 1200,
-            "maxDuration": 1400,
-            "easingType": Motion.easingStandard,
-            "easingCurve": Motion.standardCurve,
+            "minDuration": 850,
+            "maxDuration": 1000,
+            "easingType": Easing.Linear,
+            "easingCurve": [],
             "variants": [0, 1, 2, 3]
         },
         {
             "shader": "shaders/ripple_reveal.frag.qsb",
-            "minDuration": 1450,
-            "maxDuration": 1750,
-            "easingType": Motion.easingEmphasizedDecelerate,
-            "easingCurve": Motion.emphasizedDecelerateCurve,
+            "minDuration": 1000,
+            "maxDuration": 1150,
+            "easingType": Easing.Linear,
+            "easingCurve": [],
             "variants": [0, 1, 2, 3, 4, 5]
         },
         {
             "shader": "shaders/tv_on.frag.qsb",
-            "minDuration": 1200,
-            "maxDuration": 1350,
-            "easingType": Motion.easingStandardDecelerate,
-            "easingCurve": Motion.standardDecelerateCurve,
+            "minDuration": 900,
+            "maxDuration": 1050,
+            "easingType": Easing.Linear,
+            "easingCurve": [],
             "variants": [0, 1, 2, 3, 4]
         }
     ]

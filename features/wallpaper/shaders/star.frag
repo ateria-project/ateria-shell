@@ -62,8 +62,8 @@ void main() {
     vec2 farthestCorner = max(origin, vec2(1.0) - origin) * scale;
     float maxDistance = length(farthestCorner);
     float maxRadius = maxDistance * 2.6;
-    float radius = mix(-edge * 2.0, maxRadius + edge * 2.0, progress);
-    float distanceToStar = radius < 0.0 ? edge * 3.0 : sdStar5(p, max(radius, 0.001), 0.43);
+    float radius = mix(0.0, maxRadius + edge * 2.0, progress);
+    float distanceToStar = sdStar5(p, max(radius, 0.001), 0.43);
     float reveal = 1.0 - smoothstep(-edge, edge, distanceToStar);
 
     float edgeBand = 1.0 - smoothstep(0.0, edge * 2.6, abs(distanceToStar));

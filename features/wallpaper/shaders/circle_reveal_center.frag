@@ -45,8 +45,12 @@ void main() {
     // A small ripple and refraction turn this from a flat PowerPoint iris
     // into a soft lens moving across the two wallpapers.
     float edge = 0.028;
-    float radius = mix(-0.10, maxDistance + 0.10, progress);
-    float ripple = sin(distanceFromCenter * 56.0 - progress * 16.0) * 0.006;
+    float rippleAmount = 0.006;
+    // Begin at the origin instead of spending the opening frames with the
+    // reveal completely outside the image. The small end padding only keeps
+    // the ripple beyond the farthest corner at completion.
+    float radius = mix(0.0, maxDistance + edge + rippleAmount, progress);
+    float ripple = sin(distanceFromCenter * 56.0 - progress * 16.0) * rippleAmount;
     float signedDistance = distanceFromCenter - radius + ripple;
     float reveal = 1.0 - smoothstep(-edge, edge, signedDistance);
 

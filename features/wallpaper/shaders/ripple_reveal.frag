@@ -36,14 +36,15 @@ void main() {
     float distanceFromCenter = length(p);
     vec2 farthestCorner = max(origin, vec2(1.0) - origin) * scale;
     float maxDistance = length(farthestCorner);
-    float radius = mix(-0.12, maxDistance + 0.12, progress);
+    float edge = 0.030;
+    float rippleAmount = 0.010;
+    float radius = mix(0.0, maxDistance + edge + rippleAmount, progress);
 
     // Constrain the ripple to the moving front, so the wallpaper remains
     // readable instead of looking like it is permanently under water.
     float distanceToFront = distanceFromCenter - radius;
     float rippleBand = 1.0 - smoothstep(0.0, 0.18, abs(distanceToFront));
-    float ripple = sin(distanceFromCenter * 78.0 - progress * 24.0) * 0.010 * rippleBand;
-    float edge = 0.030;
+    float ripple = sin(distanceFromCenter * 78.0 - progress * 24.0) * rippleAmount * rippleBand;
     float signedDistance = distanceToFront + ripple;
     float reveal = 1.0 - smoothstep(-edge, edge, signedDistance);
 
