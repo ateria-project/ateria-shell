@@ -138,6 +138,7 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
+            Layout.topMargin: Metrics.spacingSm
             spacing: Metrics.spacingSm
 
             Item {

@@ -11,6 +11,7 @@ Singleton {
     property bool initialized: false
     property bool agentReady: false
     property int agentRestartAttempts: 0
+    property int incomingPairingRetryCount: 0
     property var pairingRequest: null
     property string agentError: ""
 
@@ -75,7 +76,31 @@ Singleton {
 
         root.initialized = true;
         agentProcess.running = true;
+        incomingPairingEnsureTimer.restart();
     }
+
+    function ensureIncomingPairingEnabled() {
+        if (!root.initialized || !root.operational)
+            return;
+
+        if (!root.pairable)
+            root.setPairable(true, 0);
+        if (!root.discoverable)
+            root.setDiscoverable(true, 0);
+        incomingPairingVerificationTimer.restart();
+    }
+
+    onOperationalChanged: {
+        if (root.operational)
+            incomingPairingEnsureTimer.restart();
+        else {
+            incomingPairingEnsureTimer.stop();
+            incomingPairingVerificationTimer.stop();
+            root.incomingPairingRetryCount = 0;
+        }
+    }
+    onDiscoverableChanged: incomingPairingEnsureTimer.restart()
+    onPairableChanged: incomingPairingEnsureTimer.restart()
 
     function handleAgentLine(line: string) {
         const trimmed = line.trim();
@@ -467,6 +492,35 @@ Singleton {
                     root.agentError = "Bluetooth pairing agent stopped with code " + exitCode;
                 agentRestartTimer.restart();
             }
+        }
+    }
+
+    Timer {
+        id: incomingPairingEnsureTimer
+
+        interval: 0
+        onTriggered: root.ensureIncomingPairingEnabled()
+    }
+
+    Timer {
+        id: incomingPairingVerificationTimer
+
+        interval: 750
+        onTriggered: {
+            if (!root.operational)
+                return;
+            if (root.discoverable && root.pairable) {
+                root.incomingPairingRetryCount = 0;
+                return;
+            }
+            if (root.incomingPairingRetryCount < 2) {
+                root.incomingPairingRetryCount++;
+                root.ensureIncomingPairingEnabled();
+                return;
+            }
+
+            root.incomingPairingRetryCount = 0;
+            console.warn("BluetoothService: Could not keep the adapter discoverable and pairable");
         }
     }
 

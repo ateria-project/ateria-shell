@@ -14,10 +14,6 @@ M3Panel {
 
     property var controller: null
     property bool discoveryStartedHere: false
-    property bool discoverableStartedHere: false
-    property bool pairableStartedHere: false
-    property int previousDiscoverableTimeout: 0
-    property int previousPairableTimeout: 0
     property int discoveryRetryCount: 0
     property string operationMessage: ""
 
@@ -43,19 +39,6 @@ M3Panel {
         if (!BluetoothService.operational)
             return;
 
-        if (!BluetoothService.pairable) {
-            if (!root.pairableStartedHere)
-                root.previousPairableTimeout = Number(BluetoothService.adapter?.pairableTimeout ?? 0);
-            if (BluetoothService.setPairable(true, 0))
-                root.pairableStartedHere = true;
-        }
-        if (!BluetoothService.discoverable) {
-            if (!root.discoverableStartedHere)
-                root.previousDiscoverableTimeout = Number(BluetoothService.adapter?.discoverableTimeout ?? 0);
-            if (BluetoothService.setDiscoverable(true, 0))
-                root.discoverableStartedHere = true;
-        }
-
         if (!BluetoothService.discovering) {
             if (BluetoothService.setDiscovering(true))
                 root.discoveryStartedHere = true;
@@ -67,15 +50,7 @@ M3Panel {
         discoveryVerificationTimer.stop();
         if (root.discoveryStartedHere)
             BluetoothService.setDiscovering(false);
-        if (root.discoverableStartedHere)
-            BluetoothService.setDiscoverable(false, root.previousDiscoverableTimeout);
-        if (root.pairableStartedHere)
-            BluetoothService.setPairable(false, root.previousPairableTimeout);
         root.discoveryStartedHere = false;
-        root.discoverableStartedHere = false;
-        root.pairableStartedHere = false;
-        root.previousDiscoverableTimeout = 0;
-        root.previousPairableTimeout = 0;
         root.discoveryRetryCount = 0;
     }
 
@@ -102,10 +77,6 @@ M3Panel {
             } else {
                 discoveryVerificationTimer.stop();
                 root.discoveryStartedHere = false;
-                root.discoverableStartedHere = false;
-                root.pairableStartedHere = false;
-                root.previousDiscoverableTimeout = 0;
-                root.previousPairableTimeout = 0;
                 root.discoveryRetryCount = 0;
             }
         }
@@ -119,8 +90,7 @@ M3Panel {
             if (!BluetoothService.operational)
                 return;
 
-            const exposureReady = BluetoothService.pairable && BluetoothService.discoverable;
-            if (exposureReady && BluetoothService.discovering) {
+            if (BluetoothService.discovering) {
                 root.discoveryRetryCount = 0;
                 return;
             }
@@ -132,9 +102,7 @@ M3Panel {
             }
 
             root.discoveryRetryCount = 0;
-            root.showOperationFailure(exposureReady
-                ? "Could not start device discovery"
-                : "Could not make this device discoverable and pairable");
+            root.showOperationFailure("Could not start device discovery");
         }
     }
 
