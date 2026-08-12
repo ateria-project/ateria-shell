@@ -8,6 +8,7 @@ import qs.platform.audio
 import qs.platform.bluetooth
 import qs.platform.display
 import qs.platform.network
+import qs.platform.notifications
 import qs.platform.power
 import Quickshell.Services.UPower
 import qs.shell
@@ -74,12 +75,13 @@ M3Panel {
             }
 
             QuickSettingsTile {
-                active: false
+                active: NotificationService.doNotDisturb
                 iconName: "do_not_disturb_on"
                 title: "Do Not Disturb"
-                subtitle: "Off"
+                subtitle: NotificationService.doNotDisturb ? "On" : "Off"
                 showDetails: false
                 Layout.fillWidth: true
+                onClicked: NotificationService.toggleDoNotDisturb()
             }
         }
 

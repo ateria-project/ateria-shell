@@ -16,6 +16,7 @@ Singleton {
     readonly property int nonTransientCount: root.nonTransientNotifications.length
     readonly property bool hasNotifications: root.count > 0
     readonly property bool hasNonTransientNotifications: root.nonTransientCount > 0
+    readonly property bool doNotDisturb: NotificationSettings.doNotDisturb
 
     property bool initialized: false
     property bool dismissalBatchActive: false
@@ -28,6 +29,14 @@ Singleton {
         // Calling this function explicitly constructs the singleton and its
         // NotificationServer. Construction claims org.freedesktop.Notifications.
         root.initialized = true;
+    }
+
+    function setDoNotDisturb(value: bool): bool {
+        return NotificationSettings.setDoNotDisturb(value);
+    }
+
+    function toggleDoNotDisturb(): bool {
+        return root.setDoNotDisturb(!root.doNotDisturb);
     }
 
     function isValidNotification(notification): bool {

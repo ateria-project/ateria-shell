@@ -11,6 +11,7 @@ AbstractButton {
     property var screen: null
     readonly property int notificationCount: NotificationService.nonTransientCount
     readonly property string displayedCount: root.notificationCount > 99 ? "99+" : String(root.notificationCount)
+    readonly property bool doNotDisturb: NotificationService.doNotDisturb
     readonly property bool active: SurfaceController.notificationPanelOpen && SurfaceController.notificationPanelScreen === root.screen
     readonly property color contentColor: root.active ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
 
@@ -20,7 +21,7 @@ AbstractButton {
     hoverEnabled: true
     horizontalPadding: 10
     scale: root.down ? 0.96 : 1
-    Accessible.name: root.notificationCount > 0 ? qsTr("%1 notifications").arg(root.notificationCount) : qsTr("No notifications")
+    Accessible.name: root.doNotDisturb ? qsTr("Do Not Disturb enabled") : (root.notificationCount > 0 ? qsTr("%1 notifications").arg(root.notificationCount) : qsTr("No notifications"))
     onClicked: SurfaceController.toggleNotificationPanel(root.screen)
 
     HoverHandler {
@@ -58,8 +59,8 @@ AbstractButton {
     contentItem: Item {
         M3Icon {
             anchors.centerIn: parent
-            visible: root.notificationCount === 0
-            name: "notifications_none"
+            visible: root.doNotDisturb || root.notificationCount === 0
+            name: root.doNotDisturb ? "notifications_paused" : "notifications_none"
             size: 20
             filled: false
             color: root.contentColor
@@ -67,7 +68,7 @@ AbstractButton {
 
         M3Text {
             anchors.centerIn: parent
-            visible: root.notificationCount > 0
+            visible: !root.doNotDisturb && root.notificationCount > 0
             text: root.displayedCount
             color: root.contentColor
             font.pixelSize: 14

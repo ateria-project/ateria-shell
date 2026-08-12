@@ -175,7 +175,13 @@ Singleton {
         target: NotificationService
 
         function onNotificationReceived(notification) {
-            root.show(notification);
+            if (!NotificationService.doNotDisturb)
+                root.show(notification);
+        }
+
+        function onDoNotDisturbChanged() {
+            if (NotificationService.doNotDisturb)
+                root.hide();
         }
 
         function onDismissalBatchActiveChanged() {
