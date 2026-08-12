@@ -744,7 +744,7 @@ M3Panel {
                 left: parent.left
                 right: parent.right
                 top: parent.top
-                bottom: discoverabilityNotice.top
+                bottom: parent.bottom
                 leftMargin: Metrics.spacingLg
                 rightMargin: Metrics.spacingLg
                 topMargin: Metrics.spacingSm
@@ -832,27 +832,6 @@ M3Panel {
             ScrollBar.vertical: M3ScrollBar {
                 policy: deviceList.contentHeight > deviceList.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
             }
-        }
-
-        M3Text {
-            id: discoverabilityNotice
-
-            visible: BluetoothService.operational
-            anchors {
-                left: parent.left
-                right: parent.right
-                bottom: parent.bottom
-                leftMargin: Metrics.spacingLg
-                rightMargin: Metrics.spacingLg
-                bottomMargin: Metrics.spacingSm
-            }
-            height: visible ? contentHeight + Metrics.spacingXs : 0
-            text: qsTr("This device is discoverable and pairable while this page is open.")
-            color: Theme.scheme.onSurfaceVariant
-            font.pixelSize: 11
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            wrapMode: Text.WordWrap
         }
     }
 }
