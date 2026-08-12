@@ -90,11 +90,11 @@ Item {
         id: activeWindowIndicator
 
         visible: root.activeWindowLayout !== null
-        targetX: root.activeWindowLayout?.x ?? 0
-        targetWidth: root.activeIndicatorWidth
+        targetPosition: root.activeWindowLayout?.x ?? 0
+        targetExtent: root.activeIndicatorWidth
+        crossPosition: 0
+        crossExtent: root.barHeight
         motionEnabled: root.activeWindowLayout !== null
-        anchors.verticalCenter: parent.verticalCenter
-        height: root.barHeight
         z: 1
 
         Rectangle {

@@ -13,20 +13,19 @@ import qs.theme
 TransientPanelWindow {
     id: root
 
-    property real panelWidth: 900
-    property real panelHeight: 680
+    readonly property int panelWidth: 960
+    readonly property int panelHeight: 720
+    readonly property int sidebarWidth: 300
+    readonly property int panelRadius: 16
     property string currentNamespace: ""
 
     function showCategory(namespaceName: string) {
         if (namespaceName.length === 0 || namespaceName === root.currentNamespace)
             return;
 
-        const category = settingsController.category(namespaceName);
         const properties = {
             settingsController,
-            namespaceName,
-            title: category.title,
-            description: category.description
+            namespaceName
         };
 
         if (pageStack.depth === 0)
@@ -40,13 +39,14 @@ TransientPanelWindow {
     open: SurfaceController.settingsOpen
     targetScreen: SurfaceController.settingsScreen
     fallbackScreen: SurfaceController.preferredScreen(WorkspaceService.focusedOutputName)
-    transitionsEnabled: false
+    transitionsEnabled: true
     implicitWidth: root.panelWidth
     implicitHeight: root.panelHeight
     color: "transparent"
     WlrLayershell.exclusiveZone: 0
     WlrLayershell.keyboardFocus: root.interactive ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     WlrLayershell.namespace: "ateria-shell-settings"
+    onTransitionRequested: (entering, generation) => panelTransition.transition(entering, generation)
 
     anchors {
         top: true
@@ -57,6 +57,9 @@ TransientPanelWindow {
 
     onOpenChanged: {
         if (root.open) {
+            const currentPage = pageStack.currentItem;
+            if (currentPage && currentPage.listEditorOpen)
+                currentPage.closeListEditor();
             settingsController.ensureSelection();
             root.showCategory(settingsController.selectedNamespace);
         }
@@ -83,119 +86,75 @@ TransientPanelWindow {
     Rectangle {
         anchors.fill: parent
         color: Theme.scheme.scrim
-        opacity: 0.32
+        opacity: 0.32 * panelTransition.progress
     }
 
     DismissibleOverlay {
-        excludedItem: windowFrame
+        excludedItem: panelPresentation
         enabled: root.interactive
         onDismissed: SurfaceController.closeSettings()
     }
 
-    Rectangle {
-        id: windowFrame
+    PresentationLayer {
+        id: panelPresentation
 
         anchors.centerIn: parent
-        width: Math.min(root.panelWidth, Math.max(480, root.width - 48))
-        height: Math.min(root.panelHeight, Math.max(360, root.height - 48))
-        radius: Metrics.radiusXl
-        color: Theme.scheme.surfaceContainerLow
-        clip: true
+        width: Math.min(root.panelWidth, Math.max(480, root.width - Metrics.spacingLg * 2))
+        height: Math.min(root.panelHeight, Math.max(360, root.height - Metrics.spacingLg * 2))
 
-        // Outer keyline for depth
         Rectangle {
+            id: windowFrame
+
             anchors.fill: parent
-            z: 100
-            color: "transparent"
-            radius: parent.radius
-            antialiasing: true
-            border.width: Theme.panelBorderWidth
-            border.color: Theme.panelOuterKeyline
-        }
+            radius: root.panelRadius
+                + 12 * (1 - Math.max(0, Math.min(1, panelTransition.spatialProgress)))
+            color: Theme.scheme.surfaceContainerLow
+            clip: true
 
-        // Inner highlight
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: Theme.panelInnerBorderInset
-            z: 101
-            color: "transparent"
-            radius: Math.max(0, parent.radius - Theme.panelInnerBorderInset)
-            antialiasing: true
-            border.width: Theme.panelBorderWidth
-            border.color: Theme.panelInnerHighlight
-        }
-
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 0
-
-            // Header bar
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 56
-                Layout.leftMargin: Metrics.spacingXl
-                Layout.rightMargin: Metrics.spacingMd
-                spacing: Metrics.spacingSm
-
-                M3Text {
-                    Layout.fillWidth: true
-                    text: qsTr("Settings")
-                    font.pixelSize: 20
-                    font.weight: Font.DemiBold
-                    color: Theme.scheme.onSurface
-                }
-
-                M3Button {
-                    style: M3Button.Text
-                    iconName: "close"
-                    iconSize: 22
-                    contentColor: Theme.scheme.onSurfaceVariant
-                    Accessible.name: qsTr("Close settings")
-                    onClicked: SurfaceController.closeSettings()
-                }
-            }
-
-            // Header divider
+            // Outer keyline for depth
             Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Theme.scheme.outlineVariant
-                opacity: 0.5
+                anchors.fill: parent
+                z: 100
+                color: "transparent"
+                radius: parent.radius
+                antialiasing: true
+                border.width: Theme.panelBorderWidth
+                border.color: Theme.panelOuterKeyline
             }
 
-            // Main content split
+            // Inner highlight
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: Theme.panelInnerBorderInset
+                z: 101
+                color: "transparent"
+                radius: Math.max(0, parent.radius - Theme.panelInnerBorderInset)
+                antialiasing: true
+                border.width: Theme.panelBorderWidth
+                border.color: Theme.panelInnerHighlight
+            }
+
             RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+                anchors.fill: parent
                 spacing: 0
 
-                // Navigation sidebar
-                Item {
-                    Layout.preferredWidth: 280
+                Rectangle {
+                    Layout.preferredWidth: root.sidebarWidth
                     Layout.fillHeight: true
+                    color: Theme.scheme.surfaceContainer
+                    topLeftRadius: windowFrame.radius
+                    bottomLeftRadius: windowFrame.radius
+                    antialiasing: true
 
                     SettingsNavigation {
-                        id: navigation
-
                         anchors {
                             fill: parent
-                            margins: Metrics.spacingMd
+                            margins: Metrics.spacingLg
                         }
                         settingsController: settingsController
                     }
                 }
 
-                // Vertical divider
-                Rectangle {
-                    Layout.fillHeight: true
-                    Layout.topMargin: Metrics.spacingSm
-                    Layout.bottomMargin: Metrics.spacingSm
-                    width: 1
-                    color: Theme.scheme.outlineVariant
-                    opacity: 0.5
-                }
-
-                // Content area
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -219,6 +178,19 @@ TransientPanelWindow {
     Shortcut {
         enabled: root.interactive
         sequences: [StandardKey.Cancel]
-        onActivated: SurfaceController.closeSettings()
+        onActivated: {
+            const currentPage = pageStack.currentItem;
+            if (currentPage && currentPage.listEditorOpen)
+                currentPage.closeListEditor();
+            else
+                SurfaceController.closeSettings();
+        }
+    }
+
+    ScaleFadeTransition {
+        id: panelTransition
+
+        target: panelPresentation
+        onTransitionFinished: generation => root.completeTransition(generation)
     }
 }

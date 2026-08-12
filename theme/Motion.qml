@@ -15,6 +15,9 @@ Singleton {
     readonly property int durationLong: 300
     readonly property int durationSpatialDefault: 380
     readonly property int durationPageTransition: 320
+    readonly property int durationExpressiveFastSpatial: 350
+    readonly property int durationExpressiveDefaultEffects: 200
+    readonly property int durationExpressiveSlowEffects: 300
 
     readonly property int easingStandard: Easing.BezierSpline
     readonly property list<real> standardCurve: [0.2, 0.0, 0.0, 1.0, 1.0, 1.0]
@@ -32,4 +35,10 @@ Singleton {
     readonly property int easingExpressiveSpatial: Easing.BezierSpline
     readonly property list<real> expressiveDefaultSpatialCurve: [0.38, 1.21, 0.22, 1.0, 1.0, 1.0]
     readonly property list<real> expressiveGentleSpatialCurve: [0.38, 1.14, 0.22, 1.0, 1.0, 1.0]
+    readonly property int easingExpressiveFastSpatial: Easing.BezierSpline
+    readonly property list<real> expressiveFastSpatialCurve: [0.42, 1.67, 0.21, 0.9, 1.0, 1.0]
+    readonly property int easingExpressiveDefaultEffects: Easing.BezierSpline
+    readonly property list<real> expressiveDefaultEffectsCurve: [0.34, 0.8, 0.34, 1.0, 1.0, 1.0]
+    readonly property int easingExpressiveSlowEffects: Easing.BezierSpline
+    readonly property list<real> expressiveSlowEffectsCurve: [0.34, 0.88, 0.34, 1.0, 1.0, 1.0]
 }

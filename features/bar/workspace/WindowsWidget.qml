@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import qs.components
 import qs.theme
 import "WorkspaceLayout.js" as WorkspaceLayout
 import "components"
@@ -40,12 +41,12 @@ Rectangle {
         readonly property bool urgent: root.activeItem !== null && Boolean(root.activeItem.urgent)
 
         visible: root.activePosition >= 0
-        targetX: Math.max(0, root.activePosition) * root.cellWidth
+        targetPosition: Math.max(0, root.activePosition) * root.cellWidth
             + (root.cellWidth - WorkspaceLayout.activeIndicatorWidth) / 2
-        targetWidth: WorkspaceLayout.activeIndicatorWidth
+        targetExtent: WorkspaceLayout.activeIndicatorWidth
+        crossPosition: 0
+        crossExtent: root.barHeight
         motionEnabled: root.activePosition >= 0
-        anchors.verticalCenter: parent.verticalCenter
-        height: root.barHeight
         z: 1
 
         Rectangle {

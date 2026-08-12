@@ -11,6 +11,9 @@ ColumnLayout {
 
     required property var settingsController
 
+    readonly property int selectedIndex: root.settingsController.filteredCategories.findIndex(category =>
+        category.namespaceName === root.settingsController.selectedNamespace)
+
     spacing: Metrics.spacingMd
 
     function focusSearch() {
@@ -26,7 +29,7 @@ ColumnLayout {
         clearButtonEnabled: true
         text: root.settingsController.query
         Accessible.name: qsTr("Search settings")
-        onTextEdited: root.settingsController.query = text
+        onTextChanged: root.settingsController.query = text
     }
 
     ListView {
@@ -35,11 +38,30 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
         model: root.settingsController.filteredCategories
-        spacing: 2
+        currentIndex: root.selectedIndex
+        spacing: Metrics.spacingXs
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         reuseItems: true
         cacheBuffer: 240
+
+        ExpressiveIndicator {
+            parent: categoryList.contentItem
+            visible: categoryList.currentItem !== null
+            orientation: Qt.Vertical
+            targetPosition: categoryList.currentItem?.y ?? 0
+            targetExtent: categoryList.currentItem?.height ?? 0
+            crossPosition: 0
+            crossExtent: categoryList.width
+            motionEnabled: categoryList.currentItem !== null
+            z: 0
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Metrics.radiusMd
+                color: Theme.scheme.secondaryContainer
+            }
+        }
 
         delegate: SettingsNavigationItem {
             required property var modelData
@@ -47,6 +69,7 @@ ColumnLayout {
             width: categoryList.width
             category: modelData
             selected: modelData.namespaceName === root.settingsController.selectedNamespace
+            z: 1
             onActivated: root.settingsController.selectNamespace(modelData.namespaceName)
         }
 

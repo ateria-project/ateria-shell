@@ -14,7 +14,7 @@ AbstractButton {
 
     signal activated()
 
-    implicitHeight: 56
+    implicitHeight: 64
     leftPadding: Metrics.spacingMd
     rightPadding: Metrics.spacingMd
     topPadding: Metrics.spacingSm
@@ -26,13 +26,13 @@ AbstractButton {
 
     background: Rectangle {
         radius: Metrics.radiusMd
-        color: root.selected ? Theme.scheme.secondaryContainer : "transparent"
+        color: "transparent"
 
         Rectangle {
             anchors.fill: parent
             radius: parent.radius
             color: Theme.scheme.onSurface
-            opacity: root.down ? 0.12 : root.hovered && !root.selected ? 0.08 : root.visualFocus ? 0.12 : 0
+            opacity: root.selected ? 0 : root.down ? 0.12 : root.hovered ? 0.08 : root.visualFocus ? 0.12 : 0
 
             Behavior on opacity {
                 NumberAnimation {
@@ -40,12 +40,6 @@ AbstractButton {
                     easing.type: Motion.easingStandard
                     easing.bezierCurve: Motion.standardCurve
                 }
-            }
-        }
-
-        Behavior on color {
-            ColorAnimation {
-                duration: Motion.durationMedium
             }
         }
     }
@@ -56,7 +50,7 @@ AbstractButton {
         M3Icon {
             Layout.alignment: Qt.AlignVCenter
             name: root.category.icon
-            size: 22
+            size: 24
             color: root.selected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurfaceVariant
 
             Behavior on color {
@@ -68,13 +62,13 @@ AbstractButton {
 
         ColumnLayout {
             Layout.fillWidth: true
-            spacing: 2
+            spacing: 1
 
             M3Text {
                 Layout.fillWidth: true
                 text: root.category.title
-                font.pixelSize: 14
-                font.weight: root.selected ? Font.DemiBold : Font.Normal
+                font.pixelSize: 16
+                font.weight: Font.Normal
                 elide: Text.ElideRight
                 maximumLineCount: 1
                 textFormat: Text.PlainText
@@ -90,12 +84,12 @@ AbstractButton {
             M3Text {
                 Layout.fillWidth: true
                 text: root.category.description
-                font.pixelSize: 12
+                font.pixelSize: 13
                 elide: Text.ElideRight
                 maximumLineCount: 1
                 textFormat: Text.PlainText
                 color: root.selected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurfaceVariant
-                opacity: root.selected ? 0.8 : 0.7
+                opacity: 0.72
 
                 Behavior on color {
                     ColorAnimation {

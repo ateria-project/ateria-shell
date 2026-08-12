@@ -7,13 +7,17 @@ import qs.components
 import qs.platform.settings
 import qs.theme
 
-Item {
+Rectangle {
     id: root
 
     required property string namespaceName
     required property string settingName
     required property var definition
-    property bool showSeparator: false
+    property bool firstInGroup: true
+    property bool lastInGroup: true
+    property string stringDraft: String(root.currentValue ?? "")
+
+    signal editListRequested(string settingName, var definition)
 
     readonly property var currentValue: {
         const revision = SettingsService.revision;
@@ -24,15 +28,18 @@ Item {
         return SettingsService.setValue(root.namespaceName, root.settingName, value);
     }
 
-    function listText(value): string {
-        return Array.isArray(value) ? value.join("\n") : "";
+    function commitStringEdit(): void {
+        if (!root.setValue(root.stringDraft))
+            root.stringDraft = String(root.currentValue ?? "");
     }
 
-    function parsedList(text: string): var {
-        return text.split(/\r?\n|,/).map(value => value.trim()).filter(value => value.length > 0);
-    }
-
-    implicitHeight: content.implicitHeight + Metrics.spacingLg * 2
+    implicitHeight: Math.max(64, content.implicitHeight + Metrics.spacingLg * 2)
+    radius: Metrics.spacingXs
+    topLeftRadius: root.firstInGroup ? Metrics.radiusLg : Metrics.spacingXs
+    topRightRadius: root.firstInGroup ? Metrics.radiusLg : Metrics.spacingXs
+    bottomLeftRadius: root.lastInGroup ? Metrics.radiusLg : Metrics.spacingXs
+    bottomRightRadius: root.lastInGroup ? Metrics.radiusLg : Metrics.spacingXs
+    color: Theme.scheme.surfaceContainer
 
     ColumnLayout {
         id: content
@@ -49,16 +56,16 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: Metrics.spacingLg
+            spacing: Metrics.spacingMd
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 2
+                spacing: 1
 
                 M3Text {
                     Layout.fillWidth: true
                     text: String(root.definition.label ?? root.settingName)
-                    font.pixelSize: 14
+                    font.pixelSize: 16
                     font.weight: Font.Medium
                     wrapMode: Text.Wrap
                     color: Theme.scheme.onSurface
@@ -69,14 +76,43 @@ Item {
                     Layout.fillWidth: true
                     visible: text.length > 0
                     text: String(root.definition.description ?? "")
-                    font.pixelSize: 12
+                    font.pixelSize: 13
                     wrapMode: Text.Wrap
                     color: Theme.scheme.onSurfaceVariant
+                    opacity: 0.72
                     textFormat: Text.PlainText
+                }
+
+                M3OutlinedTextField {
+                    id: stringInput
+
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: root.definition.type === "string" ? 40 : 0
+                    Layout.topMargin: root.definition.type === "string" ? Metrics.spacingSm : 0
+                    visible: root.definition.type === "string"
+
+                    text: root.stringDraft
+                    Accessible.name: String(root.definition.label ?? root.settingName)
+                    onTextEdited: root.stringDraft = text
+                    onEditingFinished: root.commitStringEdit()
+
+                    Keys.onReturnPressed: event => {
+                        root.commitStringEdit();
+                        event.accepted = true;
+                    }
+                    Keys.onEnterPressed: event => {
+                        root.commitStringEdit();
+                        event.accepted = true;
+                    }
+                    Keys.onEscapePressed: event => {
+                        root.stringDraft = String(root.currentValue ?? "");
+                        stringInput.focus = false;
+                        event.accepted = true;
+                    }
                 }
             }
 
-            Switch {
+            M3Switch {
                 visible: root.definition.type === "bool"
                 checked: Boolean(root.currentValue)
                 Accessible.name: String(root.definition.label ?? root.settingName)
@@ -86,16 +122,69 @@ Item {
                 }
             }
 
+            AbstractButton {
+                id: listSummary
+
+                visible: root.definition.type === "list"
+                implicitWidth: summaryContent.implicitWidth + Metrics.spacingMd * 2
+                implicitHeight: 40
+                leftPadding: Metrics.spacingMd
+                rightPadding: Metrics.spacingMd
+                hoverEnabled: true
+                focusPolicy: Qt.StrongFocus
+                Accessible.name: qsTr("Edit %1").arg(String(root.definition.label ?? root.settingName))
+                onClicked: root.editListRequested(root.settingName, root.definition)
+
+                background: Rectangle {
+                    radius: Metrics.radiusSm
+                    color: listSummary.hovered || listSummary.visualFocus
+                        ? Theme.scheme.surfaceContainerHighest
+                        : "transparent"
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: Theme.scheme.onSurface
+                        opacity: listSummary.down ? Theme.statePressedOpacity : 0
+                    }
+
+                    Behavior on color {
+                        ColorAnimation { duration: Motion.durationShort }
+                    }
+                }
+
+                contentItem: RowLayout {
+                    id: summaryContent
+
+                    spacing: Metrics.spacingXs
+
+                    M3Text {
+                        text: qsTr("%1 entries").arg(Array.isArray(root.currentValue) ? root.currentValue.length : 0)
+                        color: Theme.scheme.onSurfaceVariant
+                        font.pixelSize: 14
+                    }
+
+                    M3Icon {
+                        name: "chevron_right"
+                        size: 20
+                        color: Theme.scheme.onSurfaceVariant
+                    }
+                }
+
+                HoverHandler {
+                    cursorShape: Qt.PointingHandCursor
+                }
+            }
+
             Loader {
                 Layout.preferredWidth: item ? item.implicitWidth : 0
                 Layout.maximumWidth: Math.max(160, content.width * 0.48)
-                visible: ["enum", "int", "real", "string", "map", "object"].indexOf(root.definition.type) !== -1
+                visible: ["enum", "int", "real", "map", "object"].indexOf(root.definition.type) !== -1
                 sourceComponent: {
                     switch (root.definition.type) {
                     case "enum": return enumEditor;
                     case "int": return integerEditor;
                     case "real": return realEditor;
-                    case "string": return stringEditor;
                     case "map":
                     case "object": return dataEditor;
                     default: return null;
@@ -103,32 +192,17 @@ Item {
                 }
             }
         }
-
-        Loader {
-            Layout.fillWidth: true
-            visible: root.definition.type === "list"
-            sourceComponent: listEditor
-        }
     }
 
-    Rectangle {
-        anchors {
-            left: parent.left
-            right: parent.right
-            bottom: parent.bottom
-            leftMargin: Metrics.spacingLg
-            rightMargin: Metrics.spacingLg
-        }
-        visible: root.showSeparator
-        height: 1
-        color: Theme.scheme.outlineVariant
-        opacity: 0.5
+    onCurrentValueChanged: {
+        if (!stringInput.activeFocus)
+            root.stringDraft = String(root.currentValue ?? "");
     }
 
     Component {
         id: enumEditor
 
-        ComboBox {
+        M3ComboBox {
             readonly property var options: root.definition.options ?? []
 
             implicitWidth: 180
@@ -146,45 +220,28 @@ Item {
     Component {
         id: integerEditor
 
-        SpinBox {
-            implicitWidth: 130
-            editable: true
-            from: Number.isFinite(root.definition.minimum) ? root.definition.minimum : -999999
-            to: Number.isFinite(root.definition.maximum) ? root.definition.maximum : 999999
+        M3NumberField {
             value: Number(root.currentValue ?? root.definition.defaultValue ?? 0)
-            onValueModified: root.setValue(value)
+            from: Number.isFinite(root.definition.minimum) ? root.definition.minimum : -Number.MAX_VALUE
+            to: Number.isFinite(root.definition.maximum) ? root.definition.maximum : Number.MAX_VALUE
+            stepSize: Number.isFinite(root.definition.stepSize) ? root.definition.stepSize : 1
+            decimals: 0
+            accessibleName: String(root.definition.label ?? root.settingName)
+            onValueModified: value => root.setValue(value)
         }
     }
 
     Component {
         id: realEditor
 
-        TextField {
-            implicitWidth: 130
-            text: String(root.currentValue ?? root.definition.defaultValue ?? 0)
-            horizontalAlignment: TextInput.AlignRight
-            selectByMouse: true
-            validator: DoubleValidator {
-                bottom: Number.isFinite(root.definition.minimum) ? root.definition.minimum : -Infinity
-                top: Number.isFinite(root.definition.maximum) ? root.definition.maximum : Infinity
-            }
-            onEditingFinished: {
-                const candidate = Number.parseFloat(text);
-                if (!Number.isFinite(candidate) || !root.setValue(candidate))
-                    text = String(root.currentValue);
-            }
-        }
-    }
-
-    Component {
-        id: stringEditor
-
-        TextField {
-            implicitWidth: 210
-            text: String(root.currentValue ?? "")
-            selectByMouse: true
-            Accessible.name: String(root.definition.label ?? root.settingName)
-            onEditingFinished: root.setValue(text)
+        M3NumberField {
+            value: Number(root.currentValue ?? root.definition.defaultValue ?? 0)
+            from: Number.isFinite(root.definition.minimum) ? root.definition.minimum : -Number.MAX_VALUE
+            to: Number.isFinite(root.definition.maximum) ? root.definition.maximum : Number.MAX_VALUE
+            stepSize: Number.isFinite(root.definition.stepSize) ? root.definition.stepSize : 0.1
+            decimals: Number.isFinite(root.definition.decimals) ? root.definition.decimals : 2
+            accessibleName: String(root.definition.label ?? root.settingName)
+            onValueModified: value => root.setValue(value)
         }
     }
 
@@ -196,55 +253,6 @@ Item {
             style: M3Button.Tonal
             enabled: root.currentValue && Object.keys(root.currentValue).length > 0
             onClicked: SettingsService.reset(root.namespaceName, root.settingName)
-        }
-    }
-
-    Component {
-        id: listEditor
-
-        ColumnLayout {
-            spacing: Metrics.spacingSm
-
-            ScrollView {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 110
-
-                TextArea {
-                    id: listTextArea
-
-                    text: root.listText(root.currentValue)
-                    placeholderText: qsTr("One value per line")
-                    wrapMode: TextEdit.NoWrap
-                    selectByMouse: true
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                M3Text {
-                    Layout.fillWidth: true
-                    text: qsTr("%1 entries").arg(Array.isArray(root.currentValue) ? root.currentValue.length : 0)
-                    color: Theme.scheme.onSurfaceVariant
-                    font.pixelSize: 12
-                }
-
-                M3Button {
-                    text: qsTr("Apply")
-                    style: M3Button.Tonal
-                    enabled: listTextArea.text !== root.listText(root.currentValue)
-                    onClicked: root.setValue(root.parsedList(listTextArea.text))
-                }
-            }
-
-            Connections {
-                target: SettingsService
-
-                function onRevisionChanged() {
-                    if (!listTextArea.activeFocus)
-                        listTextArea.text = root.listText(root.currentValue);
-                }
-            }
         }
     }
 }

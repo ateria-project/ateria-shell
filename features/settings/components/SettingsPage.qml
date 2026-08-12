@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 import qs.components
 import qs.theme
 
@@ -11,101 +10,98 @@ Item {
 
     required property var settingsController
     required property string namespaceName
-    required property string title
-    required property string description
 
     readonly property var groups: root.settingsController.groups(root.namespaceName)
+    readonly property var category: root.settingsController.category(root.namespaceName)
+    readonly property bool listEditorOpen: contentStack.depth > 1
 
-    ColumnLayout {
+    function openListEditor(settingName: string, definition): void {
+        if (root.listEditorOpen)
+            contentStack.pop(StackView.Immediate);
+        contentStack.push(listEditorComponent, {
+            namespaceName: root.namespaceName,
+            settingName,
+            definition
+        }, StackView.Immediate);
+    }
+
+    function closeListEditor(): void {
+        if (root.listEditorOpen)
+            contentStack.pop(StackView.Immediate);
+    }
+
+    StackView {
+        id: contentStack
+
         anchors.fill: parent
-        spacing: 0
+        initialItem: overviewComponent
+    }
 
-        // Page header
+    Component {
+        id: overviewComponent
+
         Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: headerContent.implicitHeight + Metrics.spacingXl * 2
-
-            ColumnLayout {
-                id: headerContent
+            SettingsPageHeader {
+                id: pageHeader
 
                 anchors {
                     left: parent.left
                     right: parent.right
                     top: parent.top
-                    leftMargin: Metrics.spacingXl
-                    rightMargin: Metrics.spacingXl
-                    topMargin: Metrics.spacingXl
                 }
-                spacing: Metrics.spacingXs
+                title: String(root.category.title ?? root.namespaceName)
+            }
+
+            ListView {
+                id: settingsList
+
+                anchors {
+                    left: parent.left
+                    right: parent.right
+                    top: pageHeader.bottom
+                    bottom: parent.bottom
+                }
+                model: root.groups
+                spacing: Metrics.spacingLg
+                leftMargin: Metrics.spacingLg
+                rightMargin: Metrics.spacingLg
+                topMargin: Metrics.spacingLg
+                bottomMargin: Metrics.spacingLg
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                reuseItems: true
+                cacheBuffer: 480
+
+                delegate: SettingsGroup {
+                    required property var modelData
+
+                    width: settingsList.width - settingsList.leftMargin - settingsList.rightMargin
+                    height: implicitHeight
+                    namespaceName: root.namespaceName
+                    group: modelData
+                    onEditListRequested: (settingName, definition) => root.openListEditor(settingName, definition)
+                }
+
+                ScrollBar.vertical: M3ScrollBar {
+                    policy: settingsList.contentHeight > settingsList.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                }
 
                 M3Text {
-                    Layout.fillWidth: true
-                    text: root.title
-                    font.pixelSize: 22
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
-                    color: Theme.scheme.onSurface
-                    textFormat: Text.PlainText
-                }
-
-                M3Text {
-                    Layout.fillWidth: true
-                    text: root.description
-                    font.pixelSize: 14
-                    wrapMode: Text.Wrap
+                    anchors.centerIn: parent
+                    visible: settingsList.count === 0
+                    text: qsTr("No matching settings")
                     color: Theme.scheme.onSurfaceVariant
-                    textFormat: Text.PlainText
+                    font.pixelSize: 14
                 }
             }
         }
+    }
 
-        // Header divider
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.leftMargin: Metrics.spacingXl
-            Layout.rightMargin: Metrics.spacingXl
-            height: 1
-            color: Theme.scheme.outlineVariant
-            opacity: 0.5
-        }
+    Component {
+        id: listEditorComponent
 
-        // Settings groups list
-        ListView {
-            id: settingsList
-
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            model: root.groups
-            spacing: Metrics.spacingLg
-            leftMargin: Metrics.spacingXl
-            rightMargin: Metrics.spacingXl
-            topMargin: Metrics.spacingLg
-            bottomMargin: Metrics.spacingXl
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-            reuseItems: true
-            cacheBuffer: 480
-
-            delegate: SettingsGroup {
-                required property var modelData
-
-                width: settingsList.width - settingsList.leftMargin - settingsList.rightMargin
-                height: implicitHeight
-                namespaceName: root.namespaceName
-                group: modelData
-            }
-
-            ScrollBar.vertical: M3ScrollBar {
-                policy: settingsList.contentHeight > settingsList.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-            }
-
-            M3Text {
-                anchors.centerIn: parent
-                visible: settingsList.count === 0
-                text: qsTr("No matching settings")
-                color: Theme.scheme.onSurfaceVariant
-                font.pixelSize: 14
-            }
+        SettingsListEditor {
+            onCloseRequested: root.closeListEditor()
         }
     }
 }

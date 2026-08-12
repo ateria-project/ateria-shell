@@ -11,6 +11,8 @@ Column {
     required property string namespaceName
     required property var group
 
+    signal editListRequested(string settingName, var definition)
+
     readonly property string groupTitle: String(root.group.name).replace(/(^|\s)\S/g, match => match.toUpperCase())
 
     spacing: Metrics.spacingSm
@@ -19,39 +21,34 @@ Column {
     M3Text {
         leftPadding: Metrics.spacingXs
         text: root.groupTitle
-        font.pixelSize: 12
-        font.weight: Font.DemiBold
-        font.letterSpacing: 0.5
+        font.pixelSize: 13
+        font.weight: Font.Medium
         color: Theme.scheme.onSurfaceVariant
         textFormat: Text.PlainText
     }
 
-    // Card container for settings rows
-    Rectangle {
+    // Compact, individually surfaced settings rows
+    Column {
+        id: rows
+
         width: root.width
-        implicitHeight: rows.implicitHeight
-        radius: Metrics.radiusMd
-        color: Theme.scheme.surfaceContainer
+        spacing: Metrics.spacingXs
 
-        Column {
-            id: rows
+        Repeater {
+            model: root.group.entries
 
-            width: parent.width
+            delegate: SettingsRow {
+                required property int index
+                required property var modelData
 
-            Repeater {
-                model: root.group.entries
-
-                delegate: SettingsRow {
-                    required property int index
-                    required property var modelData
-
-                    width: rows.width
-                    height: implicitHeight
-                    namespaceName: root.namespaceName
-                    settingName: modelData.name
-                    definition: modelData.definition
-                    showSeparator: index < root.group.entries.length - 1
-                }
+                width: rows.width
+                height: implicitHeight
+                namespaceName: root.namespaceName
+                settingName: modelData.name
+                definition: modelData.definition
+                firstInGroup: index === 0
+                lastInGroup: index === root.group.entries.length - 1
+                onEditListRequested: (settingName, definition) => root.editListRequested(settingName, definition)
             }
         }
     }

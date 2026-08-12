@@ -3,7 +3,6 @@ import QtQuick.Controls
 import qs.components
 import qs.theme
 import "WorkspaceLayout.js" as WorkspaceLayout
-import "components"
 
 Rectangle {
     id: root
@@ -94,11 +93,11 @@ Rectangle {
         readonly property bool urgent: root.activeItem !== null && Boolean(root.activeItem.urgent)
 
         visible: root.activePosition >= 0
-        targetX: Math.max(0, root.activePosition) * root.cellWidth + (root.cellWidth - root.indicatorSize) / 2
-        targetWidth: root.indicatorSize
+        targetPosition: Math.max(0, root.activePosition) * root.cellWidth + (root.cellWidth - root.indicatorSize) / 2
+        targetExtent: root.indicatorSize
+        crossPosition: (root.height - root.indicatorSize) / 2
+        crossExtent: root.indicatorSize
         motionEnabled: root.activePosition >= 0
-        anchors.verticalCenter: parent.verticalCenter
-        height: root.indicatorSize
         z: 1
 
         Rectangle {
