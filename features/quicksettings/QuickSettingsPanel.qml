@@ -1,8 +1,11 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
+import Quickshell.Wayland
 import qs.components
+import qs.features.bluetooth
 import qs.features.quicksettings.pages
+import qs.platform.bluetooth
 import qs.shell
 import qs.theme
 
@@ -25,6 +28,12 @@ TransientPanelWindow {
         : root.maximumPanelHeight
 
     color: "transparent"
+    WlrLayershell.keyboardFocus: root.interactive
+        && (navigationController.keyboardInputActive
+            || (BluetoothPairingController.useInlinePrompt
+                && (BluetoothService.pairingRequest?.type === "pinCode" || BluetoothService.pairingRequest?.type === "passkey")))
+        ? WlrKeyboardFocus.Exclusive
+        : WlrKeyboardFocus.None
     // Keep the input surface full-screen while open so clicks outside the
     // panel can dismiss it.
     // Keep the native layer surface stable. Animating its size causes a
@@ -79,6 +88,8 @@ TransientPanelWindow {
         switch (page) {
         case "audio":
             return audioPageComponent;
+        case "bluetooth":
+            return bluetoothPageComponent;
         case "brightness":
             return brightnessPageComponent;
         default:
@@ -201,6 +212,14 @@ TransientPanelWindow {
         id: brightnessPageComponent
 
         BrightnessPage {
+            controller: navigationController
+        }
+    }
+
+    Component {
+        id: bluetoothPageComponent
+
+        BluetoothPage {
             controller: navigationController
         }
     }

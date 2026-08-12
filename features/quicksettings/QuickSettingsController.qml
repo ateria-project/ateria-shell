@@ -4,9 +4,11 @@ QtObject {
     id: root
 
     property var screen: null
+    property bool keyboardInputActive: false
 
     readonly property var validPages: ({
         "audio": true,
+        "bluetooth": true,
         "brightness": true
     })
 
@@ -26,6 +28,7 @@ QtObject {
     }
 
     function reset() {
+        root.keyboardInputActive = false;
         root.resetRequested();
     }
 }

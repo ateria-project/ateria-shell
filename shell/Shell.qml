@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.features.bar
+import qs.features.bluetooth
 import qs.features.calendar
 import qs.features.clipboard
 import qs.features.launcher
@@ -9,8 +10,9 @@ import qs.features.notifications
 import qs.features.quicksettings
 import qs.features.settings
 import qs.features.wallpaper
-import qs.platform.notifications
+import qs.platform.bluetooth
 import qs.platform.clipboard
+import qs.platform.notifications
 import qs.platform.settings
 import qs.platform.workspace
 import qs.shell
@@ -81,6 +83,7 @@ Scope {
         SettingsBootstrap.initialize();
         WallpaperController.initialize();
         NotificationService.initialize();
+        BluetoothService.initialize();
         ClipboardService.initialize();
     }
 
@@ -171,6 +174,10 @@ Scope {
 
     NotificationOverlay {
         id: notificationOverlay
+    }
+
+    BluetoothPairingOverlay {
+        id: bluetoothPairingOverlay
     }
 
     // IPC entry points must remain available while their heavier panels are

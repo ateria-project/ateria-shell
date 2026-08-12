@@ -19,6 +19,7 @@ AbstractButton {
     property string iconName: ""
 
     property int iconSize: 24
+    property real labelFontSize: 14
     property bool iconFilled: false
     property real iconWeight: 500
     property real iconGrade: 0
@@ -151,7 +152,7 @@ AbstractButton {
                 text: root.text
                 color: root.contentColor
 
-                font.pixelSize: 14
+                font.pixelSize: root.labelFontSize
                 font.weight: Font.Medium
             }
         }

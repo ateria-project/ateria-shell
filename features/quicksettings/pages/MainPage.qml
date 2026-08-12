@@ -71,7 +71,10 @@ M3Panel {
                 subtitle: BluetoothService.statusText
                 showDetails: true
                 Layout.fillWidth: true
-                onClicked: BluetoothService.toggleEnabled()
+                onClicked: {
+                    if (root.controller)
+                        root.controller.pushPage("bluetooth");
+                }
             }
 
             QuickSettingsTile {
