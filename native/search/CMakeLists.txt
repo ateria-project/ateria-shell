@@ -9,6 +9,8 @@ qt_add_qml_module(ateria_search
         launchersearchmodel.h
 )
 
+ateria_install_qml_module(ateria_search)
+
 target_link_libraries(ateria_search
     PRIVATE
         Qt6::Core

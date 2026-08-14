@@ -11,6 +11,8 @@ qt_add_qml_module(ateria_wallpaper
         wallpapermanager.h
 )
 
+ateria_install_qml_module(ateria_wallpaper)
+
 target_link_libraries(ateria_wallpaper
     PRIVATE
         Qt6::Concurrent

@@ -62,10 +62,12 @@ number, provided its source fingerprint, display profile, output file size,
 and output modification time all match. Moving to the native module therefore
 does not trigger an unnecessary rebuild of valid user caches.
 
-The module URI is `Ateria.Wallpaper`; the shared native launcher builds it and
-adds the generated QML import root before starting Quickshell. Building needs
-Qt 6.6 or newer with Core, Concurrent, Gui, and Qml. Runtime video preparation
-also needs FFmpeg and FFprobe.
+The module URI is `Ateria.Wallpaper`; the shared native launcher builds it,
+uses the generated QML import root for the current process, and installs
+changed modules for plain `qs` launches. Building needs Qt 6.6 or newer with
+Core, Concurrent, Gui, and Qml. Runtime video preparation also needs FFmpeg and
+FFprobe. See [`native/ARCHITECTURE.md`](../ARCHITECTURE.md) for the shared
+installation rules.
 
 Native tests are opt-in so normal builds do not require Qt Test:
 

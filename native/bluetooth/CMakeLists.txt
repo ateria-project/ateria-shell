@@ -7,6 +7,8 @@ qt_add_qml_module(ateria_bluetooth
         bluetoothagent.h
 )
 
+ateria_install_qml_module(ateria_bluetooth)
+
 target_link_libraries(ateria_bluetooth
     PRIVATE
         Qt6::Core

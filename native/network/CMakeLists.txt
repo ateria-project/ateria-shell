@@ -11,6 +11,8 @@ qt_add_qml_module(ateria_network
         wifinetworkmodel.h
 )
 
+ateria_install_qml_module(ateria_network)
+
 target_link_libraries(ateria_network
     PRIVATE
         Qt6::Core

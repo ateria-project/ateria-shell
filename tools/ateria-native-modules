@@ -1,0 +1,129 @@
+#!/bin/sh
+set -eu
+
+source_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+native_build_dir=${ATERIA_NATIVE_BUILD_DIR:-"$source_root/.build/native"}
+module_specs="Network:network Bluetooth:bluetooth Wallpaper:wallpaper Niri:niri Search:search"
+
+resolve_qml_install_dir() {
+    if [ -n "${ATERIA_NATIVE_QML_INSTALL_DIR:-}" ]; then
+        printf '%s\n' "$ATERIA_NATIVE_QML_INSTALL_DIR"
+    elif command -v qmake6 >/dev/null 2>&1; then
+        qmake6 -query QT_INSTALL_QML
+    elif command -v qtpaths6 >/dev/null 2>&1; then
+        qtpaths6 --query QT_INSTALL_QML
+    elif command -v qtpaths >/dev/null 2>&1; then
+        qtpaths --query QT_INSTALL_QML
+    else
+        return 1
+    fi
+}
+
+module_build_signature() {
+    install_dir=$1
+    {
+        printf '%s\n' "$install_dir"
+        sha256sum "$source_root/native/cmake/AteriaQmlInstall.cmake"
+        for module_spec in $module_specs; do
+            module_name=${module_spec%%:*}
+            target_name=${module_spec#*:}
+            sha256sum \
+                "$native_build_dir/$target_name/libateria_$target_name.so" \
+                "$native_build_dir/qml/Ateria/$module_name/libateria_${target_name}plugin.so" \
+                "$native_build_dir/qml/Ateria/$module_name/qmldir"
+        done
+    } | sha256sum | awk '{print $1}'
+}
+
+modules_are_installed() {
+    install_dir=$1
+    signature=$2
+    install_stamp="$native_build_dir/.ateria-native-install"
+
+    if [ ! -f "$install_stamp" ] \
+        || [ "$(sed -n '1p' "$install_stamp")" != "$signature" ]; then
+        return 1
+    fi
+
+    for module_spec in $module_specs; do
+        module_name=${module_spec%%:*}
+        target_name=${module_spec#*:}
+        module_dir="$install_dir/Ateria/$module_name"
+        if [ ! -f "$module_dir/libateria_$target_name.so" ] \
+            || [ ! -f "$module_dir/libateria_${target_name}plugin.so" ] \
+            || [ ! -f "$module_dir/qmldir" ]; then
+            return 1
+        fi
+    done
+}
+
+nearest_existing_parent() {
+    candidate=$1
+    while [ ! -e "$candidate" ]; do
+        parent=$(dirname -- "$candidate")
+        if [ "$parent" = "$candidate" ]; then
+            break
+        fi
+        candidate=$parent
+    done
+    printf '%s\n' "$candidate"
+}
+
+install_modules() {
+    install_dir=$1
+    signature=$2
+    writable_parent=$(nearest_existing_parent "$install_dir")
+
+    if [ -w "$writable_parent" ]; then
+        cmake --install "$native_build_dir" --component ateria-native
+    elif [ -t 0 ] && command -v sudo >/dev/null 2>&1; then
+        printf 'Installing updated Ateria QML modules into %s (administrator access required).\n' \
+            "$install_dir"
+        sudo cmake --install "$native_build_dir" --component ateria-native
+    elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+        sudo -n cmake --install "$native_build_dir" --component ateria-native
+    else
+        printf 'Warning: Ateria native modules changed but %s is not writable.\n' \
+            "$install_dir" >&2
+        printf 'Run ./tools/ateria-shell once from a terminal to install them for plain qs.\n' >&2
+        return
+    fi
+
+    printf '%s\n' "$signature" > "$native_build_dir/.ateria-native-install"
+}
+
+qml_install_dir=""
+if [ "${ATERIA_SKIP_NATIVE_INSTALL:-0}" != "1" ]; then
+    if ! qml_install_dir=$(resolve_qml_install_dir) || [ -z "$qml_install_dir" ]; then
+        printf 'Could not determine Qt\047s QML module installation directory.\n' >&2
+        printf 'Set ATERIA_NATIVE_QML_INSTALL_DIR or ATERIA_SKIP_NATIVE_INSTALL=1.\n' >&2
+        exit 1
+    fi
+fi
+
+native_cache="$native_build_dir/CMakeCache.txt"
+if [ ! -f "$native_cache" ] \
+    || ! grep -q '^CMAKE_BUILD_TYPE:STRING=RelWithDebInfo$' "$native_cache" \
+    || ! grep -q '^ATERIA_BUILD_TESTS:BOOL=OFF$' "$native_cache" \
+    || { [ -n "$qml_install_dir" ] \
+        && ! grep -Fqx "ATERIA_QML_INSTALL_DIR:STRING=$qml_install_dir" "$native_cache"; }; then
+    if [ -n "$qml_install_dir" ]; then
+        cmake -S "$source_root/native" -B "$native_build_dir" \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DATERIA_BUILD_TESTS=OFF \
+            -DATERIA_QML_INSTALL_DIR="$qml_install_dir"
+    else
+        cmake -S "$source_root/native" -B "$native_build_dir" \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DATERIA_BUILD_TESTS=OFF
+    fi
+fi
+
+cmake --build "$native_build_dir" --parallel --target ateria_native_modules
+
+if [ -n "$qml_install_dir" ]; then
+    build_signature=$(module_build_signature "$qml_install_dir")
+    if ! modules_are_installed "$qml_install_dir" "$build_signature"; then
+        install_modules "$qml_install_dir" "$build_signature"
+    fi
+fi

@@ -89,12 +89,12 @@ tools/ateria-shell
 ```
 
 The launcher configures the native tree only when its cache is missing or has
-incompatible runtime options, then incrementally builds only the four runtime
-QML plugins through the `ateria_native_modules` target. Development test targets
-are disabled for normal shell launches. It prepends the generated import root
-to `QML_IMPORT_PATH` and starts Quickshell. Set
-`ATERIA_SKIP_NATIVE_BUILD=1` to skip the build after the module is already
-present, or set `ATERIA_NATIVE_BUILD_DIR` to use a different build directory.
+incompatible runtime options, then incrementally builds the five runtime QML
+plugins through the `ateria_native_modules` target. Development test targets
+are disabled for normal shell launches. It uses the generated import root for
+the current process and installs changed modules for plain `qs` launches. See
+[`native/ARCHITECTURE.md`](../ARCHITECTURE.md) for the install layout and
+development overrides.
 
 For a module-only smoke check:
 

@@ -7,6 +7,8 @@ qt_add_qml_module(ateria_niri
         niriipc.h
 )
 
+ateria_install_qml_module(ateria_niri)
+
 target_link_libraries(ateria_niri
     PRIVATE
         Qt6::Core
