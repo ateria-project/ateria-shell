@@ -3,6 +3,10 @@ qt_add_qml_module(ateria_wallpaper
     URI Ateria.Wallpaper
     VERSION 1.0
     SOURCES
+        matugenrunner.cpp
+        matugenrunner.h
+        processscheduler.cpp
+        processscheduler.h
         wallpapermanager.cpp
         wallpapermanager.h
 )

@@ -1,4 +1,5 @@
 #include "wallpapermanager.h"
+#include "processscheduler.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -606,25 +607,8 @@ public:
         lineBuffer.clear();
         process.setProcessChannelMode(QProcess::SeparateChannels);
 
-        QString actualProgram = program;
-        QStringList actualArguments = std::move(arguments);
-        if (lowPriority) {
-            const QString nice = QStandardPaths::findExecutable(QStringLiteral("nice"));
-            const QString ionice = QStandardPaths::findExecutable(QStringLiteral("ionice"));
-            if (!ionice.isEmpty()) {
-                actualArguments.prepend(program);
-                actualArguments.prepend(QStringLiteral("3"));
-                actualArguments.prepend(QStringLiteral("-c"));
-                actualProgram = ionice;
-            }
-            if (!nice.isEmpty()) {
-                actualArguments.prepend(actualProgram);
-                actualArguments.prepend(QStringLiteral("19"));
-                actualArguments.prepend(QStringLiteral("-n"));
-                actualProgram = nice;
-            }
-        }
-        process.start(actualProgram, actualArguments, QIODevice::ReadOnly);
+        Ateria::setBackgroundScheduling(process, lowPriority, 19);
+        process.start(program, std::move(arguments), QIODevice::ReadOnly);
         updateBusy();
     }
 

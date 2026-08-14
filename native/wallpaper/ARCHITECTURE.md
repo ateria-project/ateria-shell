@@ -14,7 +14,7 @@ Stable shell facade
   WallpaperCacheService.qml
         |
 QML module: Ateria.Wallpaper
-  WallpaperManager
+  WallpaperManager / MatugenRunner
         |
 QtCore / QtGui                  FFprobe / FFmpeg
 manifest, jobs, QImage          video metadata and encoding
@@ -38,13 +38,23 @@ pipeline, but they are started and monitored directly by Qt. Hardware failure
 falls back to a low-priority, single-threaded software encode. Work retains the
 existing power rules: power saver pauses conversion, software conversion waits
 for external power, and on-battery hardware conversion only prepares the
-selected wallpaper. Thumbnails remain available in bounded bursts.
+selected wallpaper. Thumbnails remain available in bounded bursts. Native
+child-process scheduling replaces separate `nice` and `ionice` wrapper
+processes for background FFmpeg work.
 
-`MatugenService` waits for native cache revisions and consumes the same video
-thumbnail when it is ready. This avoids polling, duplicate FFmpeg decoding,
-basename collisions in `/tmp`, and unbounded temporary preview files. If native
-thumbnail generation fails or times out, the existing color scheme remains in
-place and the normal generation error signal is emitted.
+`MatugenService` uses a short debounce and waits for native cache revisions. It
+consumes the same video thumbnail when it is ready and prefers the existing
+display-sized cache for still images, falling back to the original after a
+bounded wait on a first-time cache miss. `MatugenRunner` starts the wrapper at
+background CPU priority and idle I/O priority on Linux; Matugen and its reload
+hooks inherit that scheduling policy. Shader transitions therefore retain
+priority without a fixed timing delay. Valid Matugen JSON is applied as soon as
+it reaches the shell, while external compositor and terminal reload hooks
+finish in the wrapper process. This avoids polling, fixed visual delays,
+duplicate FFmpeg decoding, basename collisions in `/tmp`, and unbounded
+temporary preview files. If native thumbnail generation fails or times out,
+the existing color scheme remains in place and the normal generation error
+signal is emitted.
 
 Existing manifest fingerprints are read at nanosecond precision. A compatible
 cached video is adopted even when it was created by a different cache-version
