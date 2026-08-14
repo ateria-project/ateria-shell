@@ -1,6 +1,7 @@
 pragma Singleton
 
 import QtQuick
+import QtCore
 import Quickshell
 import Quickshell.Io
 import "ClipboardParser.js" as ClipboardParser
@@ -13,8 +14,12 @@ Singleton {
     property bool initialized: false
     property bool available: false
     property bool captureEnabled: true
+    property bool viewActive: false
+    property bool historyDirty: true
     property bool loading: false
     property bool refreshPending: false
+    property int historyRevision: 0
+    property int listRevision: 0
     property var entries: []
     property string lastError: ""
     property string pendingCopyEntry: ""
@@ -32,7 +37,26 @@ Singleton {
             return;
 
         root.initialized = true;
-        root.refresh();
+    }
+
+    function setViewActive(active) {
+        const nextActive = Boolean(active);
+        if (root.viewActive === nextActive)
+            return;
+
+        root.viewActive = nextActive;
+        if (nextActive && (root.historyDirty || !root.available)) {
+            root.refresh();
+        } else {
+            historyRefreshTimer.stop();
+        }
+    }
+
+    function markHistoryDirty() {
+        root.historyRevision++;
+        root.historyDirty = true;
+        if (root.viewActive)
+            historyRefreshTimer.restart();
     }
 
     function refresh() {
@@ -42,6 +66,8 @@ Singleton {
         }
 
         root.refreshPending = false;
+        historyRefreshTimer.stop();
+        root.listRevision = root.historyRevision;
         root.loading = true;
         listProcess.exec(["cliphist", "list"]);
     }
@@ -61,7 +87,7 @@ Singleton {
             return false;
 
         root.pendingDeleteLine = entry.rawLine;
-        pendingDeleteEntry = entry;
+        root.pendingDeleteEntry = entry;
         deleteProcess.exec(["cliphist", "delete"]);
         return true;
     }
@@ -90,9 +116,10 @@ Singleton {
             root.available = true;
             root.lastError = "";
             root.entries = ClipboardParser.parseList(output);
+            root.historyDirty = root.listRevision !== root.historyRevision;
         }
 
-        if (root.refreshPending)
+        if (root.refreshPending || (exitCode === 0 && root.viewActive && root.historyDirty))
             root.refresh();
     }
 
@@ -102,6 +129,27 @@ Singleton {
         root.lastError = message;
         root.operationFailed(operation, message);
         console.warn("ClipboardService: " + operation + " failed:", message);
+    }
+
+    Timer {
+        id: historyRefreshTimer
+
+        interval: 100
+        repeat: false
+        onTriggered: {
+            if (root.viewActive)
+                root.refresh();
+        }
+    }
+
+    FileView {
+        // cliphist writes a Bolt database. Watch its metadata without loading
+        // the binary file into QML, then list it only while the UI is visible.
+        path: StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/cliphist/db"
+        watchChanges: root.initialized && root.captureEnabled
+        blockAllReads: true
+        printErrors: false
+        onFileChanged: root.markHistoryDirty()
     }
 
     Process {
@@ -165,8 +213,8 @@ Singleton {
         }
 
         onExited: (exitCode, exitStatus) => {
-            const deletedEntry = pendingDeleteEntry;
-            pendingDeleteEntry = null;
+            const deletedEntry = root.pendingDeleteEntry;
+            root.pendingDeleteEntry = null;
 
             if (exitCode !== 0) {
                 root.handleOperationFailure("delete", exitCode, deleteError.text);
@@ -201,12 +249,8 @@ Singleton {
     Process {
         id: textCaptureProcess
 
-        command: ["wl-paste", "--type", "text", "--watch", "sh", "-c", "cliphist store && printf 'changed\\n'"]
+        command: ["wl-paste", "--type", "text", "--watch", "cliphist", "store"]
         running: root.initialized && root.captureEnabled
-
-        stdout: SplitParser {
-            onRead: data => root.refresh()
-        }
 
         onExited: (exitCode, exitStatus) => {
             if (root.captureEnabled && exitCode !== 0)
@@ -217,12 +261,8 @@ Singleton {
     Process {
         id: imageCaptureProcess
 
-        command: ["wl-paste", "--type", "image", "--watch", "sh", "-c", "cliphist store && printf 'changed\\n'"]
+        command: ["wl-paste", "--type", "image", "--watch", "cliphist", "store"]
         running: root.initialized && root.captureEnabled
-
-        stdout: SplitParser {
-            onRead: data => root.refresh()
-        }
 
         onExited: (exitCode, exitStatus) => {
             if (root.captureEnabled && exitCode !== 0)

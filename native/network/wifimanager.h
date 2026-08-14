@@ -126,7 +126,8 @@ private:
     struct AsyncContext;
 
     static void handleClientChanged(GObject *object, GParamSpec *property, gpointer userData);
-    static void handleObjectChanged(GObject *object, gpointer argument, gpointer userData);
+    static void handleObjectChanged(GObject *object, gpointer userData);
+    static void handleObjectArgumentChanged(GObject *object, gpointer argument, gpointer userData);
     static void handleScanFinished(GObject *source, GAsyncResult *result, gpointer userData);
     static void handleConnectivityFinished(GObject *source, GAsyncResult *result, gpointer userData);
     static void handleActivationFinished(GObject *source, GAsyncResult *result, gpointer userData);
@@ -137,6 +138,8 @@ private:
 
     void initializeClient();
     void connectClientSignals();
+    void reconnectObjectSignals(NMDeviceWifi *selectedDevice);
+    void clearObjectSignals();
     void scheduleRefresh();
     void refresh();
     void refreshNetworks(NMDeviceWifi *device);
@@ -176,12 +179,13 @@ private:
     GCancellable *m_scanCancellable = nullptr;
     GCancellable *m_operationCancellable = nullptr;
     QList<QPair<GObject *, gulong>> m_clientSignalHandlers;
+    QList<QPair<GObject *, gulong>> m_objectSignalHandlers;
 
     WifiNetworkModel m_networks;
     WifiNetworkModel m_savedNetworks;
     QTimer m_refreshTimer;
+    QTimer m_activationCheckTimer;
     QTimer m_operationTimeout;
-    bool m_refreshScheduled = false;
     bool m_available = false;
     bool m_wifiEnabled = false;
     bool m_wifiHardwareEnabled = false;

@@ -81,18 +81,20 @@ TransientPanelWindow {
     }
 
     onOpenChanged: {
+        ClipboardService.setViewActive(root.open);
         root.lastPointerSceneX = NaN;
         root.lastPointerSceneY = NaN;
         root.resetEntriesScroll();
 
         if (root.open) {
-            ClipboardService.refresh();
             controller.resetSelection();
             searchField.forceActiveFocus(Qt.PopupFocusReason);
         }
     }
 
     onFullyClosed: searchField.clear()
+    Component.onCompleted: ClipboardService.setViewActive(root.open)
+    Component.onDestruction: ClipboardService.setViewActive(false)
 
     DismissibleOverlay {
         excludedItem: panelSurface.presentationItem
@@ -250,7 +252,11 @@ TransientPanelWindow {
                     }
 
                     M3Text {
-                        text: ClipboardService.available ? qsTr("No clipboard entries found") : qsTr("Clipboard history unavailable")
+                        text: ClipboardService.loading
+                            ? qsTr("Loading clipboard history")
+                            : ClipboardService.available
+                                ? qsTr("No clipboard entries found")
+                                : qsTr("Clipboard history unavailable")
                         color: Theme.scheme.onSurfaceVariant
                         font.pixelSize: 14
                         font.weight: Font.Medium

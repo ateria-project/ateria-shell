@@ -195,9 +195,18 @@ WifiManager::WifiManager(QObject *parent)
     , m_networks(this)
     , m_savedNetworks(this)
 {
-    m_refreshTimer.setInterval(1000);
+    m_refreshTimer.setSingleShot(true);
+    m_refreshTimer.setInterval(50);
     m_refreshTimer.setTimerType(Qt::CoarseTimer);
     connect(&m_refreshTimer, &QTimer::timeout, this, &WifiManager::refresh);
+
+    // NetworkManager normally reports another state change while activating.
+    // This one-shot also resolves attempts which return to DISCONNECTED before
+    // the failure grace period expires, without keeping a polling timer alive.
+    m_activationCheckTimer.setSingleShot(true);
+    m_activationCheckTimer.setInterval(3000);
+    m_activationCheckTimer.setTimerType(Qt::CoarseTimer);
+    connect(&m_activationCheckTimer, &QTimer::timeout, this, &WifiManager::scheduleRefresh);
 
     m_operationTimeout.setSingleShot(true);
     m_operationTimeout.setInterval(60000);
@@ -211,6 +220,7 @@ WifiManager::WifiManager(QObject *parent)
 WifiManager::~WifiManager()
 {
     m_refreshTimer.stop();
+    m_activationCheckTimer.stop();
     m_operationTimeout.stop();
 
     if (m_scanCancellable) {
@@ -224,6 +234,7 @@ WifiManager::~WifiManager()
         m_operationCancellable = nullptr;
     }
 
+    clearObjectSignals();
     for (const auto &[object, handler] : std::as_const(m_clientSignalHandlers))
         g_signal_handler_disconnect(object, handler);
     m_clientSignalHandlers.clear();
@@ -246,7 +257,6 @@ void WifiManager::initializeClient()
 
     connectClientSignals();
     refresh();
-    m_refreshTimer.start();
 }
 
 void WifiManager::connectClientSignals()
@@ -267,7 +277,7 @@ void WifiManager::connectClientSignals()
             return;
         const gulong handler = g_signal_connect(m_client,
                                                 signal,
-                                                G_CALLBACK(WifiManager::handleObjectChanged),
+                                                G_CALLBACK(WifiManager::handleObjectArgumentChanged),
                                                 this);
         if (handler != 0)
             m_clientSignalHandlers.append({ G_OBJECT(m_client), handler });
@@ -277,7 +287,9 @@ void WifiManager::connectClientSignals()
     connectNotify("notify::wireless-enabled");
     connectNotify("notify::wireless-hardware-enabled");
     connectNotify("notify::connectivity");
+    connectNotify("notify::connectivity-check-available");
     connectNotify("notify::primary-connection");
+    connectNotify("notify::activating-connection");
     connectObjectSignal("device-added");
     connectObjectSignal("device-removed");
     connectObjectSignal("connection-added");
@@ -291,21 +303,98 @@ void WifiManager::handleClientChanged(GObject *, GParamSpec *, gpointer userData
     static_cast<WifiManager *>(userData)->scheduleRefresh();
 }
 
-void WifiManager::handleObjectChanged(GObject *, gpointer, gpointer userData)
+void WifiManager::handleObjectChanged(GObject *, gpointer userData)
 {
     static_cast<WifiManager *>(userData)->scheduleRefresh();
 }
 
+void WifiManager::handleObjectArgumentChanged(GObject *, gpointer, gpointer userData)
+{
+    static_cast<WifiManager *>(userData)->scheduleRefresh();
+}
+
+void WifiManager::clearObjectSignals()
+{
+    for (const auto &[object, handler] : std::as_const(m_objectSignalHandlers)) {
+        g_signal_handler_disconnect(object, handler);
+        g_object_unref(object);
+    }
+    m_objectSignalHandlers.clear();
+}
+
+void WifiManager::reconnectObjectSignals(NMDeviceWifi *selectedDevice)
+{
+    clearObjectSignals();
+
+    auto connectSignal = [this](GObject *object, const char *signal, GCallback callback) {
+        if (!object)
+            return;
+
+        const gulong handler = g_signal_connect(object, signal, callback, this);
+        if (handler == 0)
+            return;
+
+        g_object_ref(object);
+        m_objectSignalHandlers.append({ object, handler });
+    };
+    auto connectNotify = [&connectSignal](GObject *object, const char *property) {
+        connectSignal(object, property, G_CALLBACK(WifiManager::handleClientChanged));
+    };
+
+    const GPtrArray *devices = nm_client_get_devices(m_client);
+    if (devices) {
+        for (guint i = 0; i < devices->len; ++i) {
+            auto *device = NM_DEVICE(g_ptr_array_index(devices, i));
+            connectNotify(G_OBJECT(device), "notify::state");
+            connectNotify(G_OBJECT(device), "notify::active-connection");
+            connectNotify(G_OBJECT(device), "notify::managed");
+
+            if (nm_device_get_device_type(device) != NM_DEVICE_TYPE_WIFI)
+                continue;
+
+            auto *wifi = NM_DEVICE_WIFI(device);
+            connectNotify(G_OBJECT(wifi), "notify::active-access-point");
+            connectNotify(G_OBJECT(wifi), "notify::last-scan");
+            connectSignal(G_OBJECT(wifi),
+                          "access-point-added",
+                          G_CALLBACK(WifiManager::handleObjectArgumentChanged));
+            connectSignal(G_OBJECT(wifi),
+                          "access-point-removed",
+                          G_CALLBACK(WifiManager::handleObjectArgumentChanged));
+        }
+    }
+
+    if (selectedDevice) {
+        const GPtrArray *accessPoints = nm_device_wifi_get_access_points(selectedDevice);
+        if (accessPoints) {
+            for (guint i = 0; i < accessPoints->len; ++i) {
+                auto *accessPoint = NM_ACCESS_POINT(g_ptr_array_index(accessPoints, i));
+                connectNotify(G_OBJECT(accessPoint), "notify::strength");
+                connectNotify(G_OBJECT(accessPoint), "notify::frequency");
+                connectNotify(G_OBJECT(accessPoint), "notify::flags");
+                connectNotify(G_OBJECT(accessPoint), "notify::wpa-flags");
+                connectNotify(G_OBJECT(accessPoint), "notify::rsn-flags");
+                connectNotify(G_OBJECT(accessPoint), "notify::ssid");
+                connectNotify(G_OBJECT(accessPoint), "notify::bssid");
+            }
+        }
+    }
+
+    const GPtrArray *connections = nm_client_get_connections(m_client);
+    if (connections) {
+        for (guint i = 0; i < connections->len; ++i) {
+            auto *connection = NM_REMOTE_CONNECTION(g_ptr_array_index(connections, i));
+            connectSignal(G_OBJECT(connection),
+                          "changed",
+                          G_CALLBACK(WifiManager::handleObjectChanged));
+        }
+    }
+}
+
 void WifiManager::scheduleRefresh()
 {
-    if (m_refreshScheduled)
-        return;
-
-    m_refreshScheduled = true;
-    QTimer::singleShot(0, this, [this] {
-        m_refreshScheduled = false;
-        refresh();
-    });
+    if (!m_refreshTimer.isActive())
+        m_refreshTimer.start();
 }
 
 QList<NMDeviceWifi *> WifiManager::wifiDeviceObjects() const
@@ -340,6 +429,9 @@ void WifiManager::refresh()
 {
     if (!m_client)
         return;
+
+    // A direct refresh satisfies any already queued reconciliation.
+    m_refreshTimer.stop();
 
     const bool oldConnected = connected();
     const bool oldWifiConnected = m_wifiConnected;
@@ -439,6 +531,7 @@ void WifiManager::refresh()
         m_networks.replace({});
     }
     refreshSavedNetworks(selectedWifi);
+    reconnectObjectSignals(selectedWifi);
 
     if (m_connectedSsid != activeSsid) {
         m_connectedSsid = activeSsid;
@@ -1319,6 +1412,7 @@ void WifiManager::markActivationAccepted()
 {
     m_activationAccepted = true;
     m_activationElapsed.restart();
+    m_activationCheckTimer.start();
     scheduleRefresh();
 }
 
@@ -1356,6 +1450,7 @@ void WifiManager::updateActivationState(NMDeviceWifi *device)
 void WifiManager::finishOperation()
 {
     m_operationTimeout.stop();
+    m_activationCheckTimer.stop();
     if (m_operationCancellable) {
         g_object_unref(m_operationCancellable);
         m_operationCancellable = nullptr;

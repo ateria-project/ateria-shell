@@ -27,3 +27,14 @@ add_subdirectory(network)
 add_subdirectory(bluetooth)
 add_subdirectory(wallpaper)
 add_subdirectory(niri)
+
+# The shell only needs the four runtime plugins. Keeping them behind one target
+# lets the launcher avoid compiling development-only targets from a test-enabled
+# build tree.
+add_custom_target(ateria_native_modules
+    DEPENDS
+        ateria_networkplugin
+        ateria_bluetoothplugin
+        ateria_wallpaperplugin
+        ateria_niriplugin
+)

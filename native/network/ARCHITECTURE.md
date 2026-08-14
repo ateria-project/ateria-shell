@@ -34,14 +34,17 @@ native API evolve without changing every consumer.
 
 ## State and operations
 
-The native layer listens to high-level `NMClient` changes and performs a cheap
-one-second reconciliation pass for access-point signal/state changes. Model
-updates are reconciled by stable ID through row inserts, moves, removals, and
-`dataChanged` signals. This preserves QML delegates and their open menus while
-scan data changes. Access points with the same SSID and security are grouped,
-with the strongest BSSID representing the group. The saved model is populated
-from every visible NetworkManager infrastructure profile, even when its access
-point is currently out of range.
+The native layer subscribes to `NMClient`, device, access-point, and saved
+connection signals. Related notifications are coalesced into one reconciliation
+pass after 50 ms, so the models stay current without an idle polling timer.
+Connection attempts use one additional three-second one-shot check to cover a
+device returning to `DISCONNECTED` before NetworkManager emits another state
+change. Model updates are reconciled by stable ID through row inserts, moves,
+removals, and `dataChanged` signals. This preserves QML delegates and their open
+menus while scan data changes. Access points with the same SSID and security are
+grouped, with the strongest BSSID representing the group. The saved model is
+populated from every visible NetworkManager infrastructure profile, even when
+its access point is currently out of range.
 
 All mutating libnm work is asynchronous. Only one connection/profile mutation
 can run at a time; scans and connectivity checks have their own asynchronous
@@ -85,8 +88,11 @@ Run the shell through:
 tools/ateria-shell
 ```
 
-The launcher incrementally configures/builds the module, prepends the generated
-import root to `QML_IMPORT_PATH`, and starts Quickshell. Set
+The launcher configures the native tree only when its cache is missing or has
+incompatible runtime options, then incrementally builds only the four runtime
+QML plugins through the `ateria_native_modules` target. Development test targets
+are disabled for normal shell launches. It prepends the generated import root
+to `QML_IMPORT_PATH` and starts Quickshell. Set
 `ATERIA_SKIP_NATIVE_BUILD=1` to skip the build after the module is already
 present, or set `ATERIA_NATIVE_BUILD_DIR` to use a different build directory.
 

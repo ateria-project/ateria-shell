@@ -5,8 +5,15 @@ source_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 native_build_dir=${ATERIA_NATIVE_BUILD_DIR:-"$source_root/.build/native"}
 
 if [ "${ATERIA_SKIP_NATIVE_BUILD:-0}" != "1" ]; then
-    cmake -S "$source_root/native" -B "$native_build_dir" -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    cmake --build "$native_build_dir" --parallel
+    native_cache="$native_build_dir/CMakeCache.txt"
+    if [ ! -f "$native_cache" ] \
+        || ! grep -q '^CMAKE_BUILD_TYPE:STRING=RelWithDebInfo$' "$native_cache" \
+        || ! grep -q '^ATERIA_BUILD_TESTS:BOOL=OFF$' "$native_cache"; then
+        cmake -S "$source_root/native" -B "$native_build_dir" \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DATERIA_BUILD_TESTS=OFF
+    fi
+    cmake --build "$native_build_dir" --parallel --target ateria_native_modules
 fi
 
 native_qml_path="$native_build_dir/qml"
