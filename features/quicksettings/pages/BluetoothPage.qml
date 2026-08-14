@@ -113,57 +113,12 @@ M3Panel {
         onTriggered: root.operationMessage = ""
     }
 
-    component DeviceMenuItem: AbstractButton {
-        id: menuItem
-
-        required property string label
-        required property string menuIcon
-        property color itemColor: Theme.scheme.onSurface
-
-        signal activated
-
-        implicitHeight: 42
-        leftPadding: Metrics.spacingMd
-        rightPadding: Metrics.spacingMd
-        hoverEnabled: menuItem.enabled
-        focusPolicy: Qt.StrongFocus
-        opacity: menuItem.enabled ? 1 : 0.38
-        Accessible.name: menuItem.label
-        onClicked: menuItem.activated()
-
-        background: Rectangle {
-            radius: Metrics.radiusSm
-            color: menuItem.down || menuItem.hovered ? Theme.stateLayer(menuItem.itemColor, menuItem.down ? Theme.statePressedOpacity : Theme.stateHoverOpacity) : "transparent"
-        }
-
-        contentItem: RowLayout {
-            spacing: Metrics.spacingMd
-
-            M3Icon {
-                name: menuItem.menuIcon
-                size: 20
-                color: menuItem.itemColor
-            }
-
-            M3Text {
-                Layout.fillWidth: true
-                text: menuItem.label
-                color: menuItem.itemColor
-                font.pixelSize: 13
-                font.weight: Font.Medium
-            }
-        }
-
-        HoverHandler {
-            cursorShape: menuItem.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-        }
-    }
-
     component BluetoothDeviceRow: Rectangle {
         id: deviceRow
 
         required property var device
         property bool newDevice: false
+        readonly property int collapsedHeight: 56
 
         readonly property bool busy: BluetoothService.deviceBusy(device)
         readonly property bool hasPairingPrompt: root.activePairingDevice === deviceRow.device
@@ -180,9 +135,14 @@ M3Panel {
             }
         }
 
-        implicitHeight: 64 + (deviceRow.hasPairingPrompt ? inlinePairingPrompt.implicitHeight + Metrics.spacingXl : 0)
+        implicitHeight: deviceRow.collapsedHeight
+            + (deviceRow.hasPairingPrompt ? inlinePairingPrompt.implicitHeight + Metrics.spacingXl : 0)
         radius: 14
-        color: device.connected ? Theme.scheme.secondaryContainer : Theme.scheme.surfaceContainerHighest
+        color: "transparent"
+
+        HoverHandler {
+            id: deviceRowHover
+        }
 
         AbstractButton {
             id: deviceAction
@@ -192,7 +152,7 @@ M3Panel {
                 right: deviceMenuButton.visible ? deviceMenuButton.left : parent.right
                 top: parent.top
             }
-            height: 64
+            height: deviceRow.collapsedHeight
 
             enabled: deviceRow.hasPrimaryAction
                 && (!deviceRow.device.blocked || deviceRow.device.pairing)
@@ -223,20 +183,29 @@ M3Panel {
             }
 
             background: Rectangle {
+                width: deviceRow.width
                 radius: deviceRow.radius
-                color: deviceAction.down || deviceAction.hovered
-                    ? Theme.stateLayer(Theme.scheme.onSurface, deviceAction.down ? Theme.statePressedOpacity : Theme.stateHoverOpacity)
-                    : "transparent"
+                color: "transparent"
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    color: Theme.scheme.onSurface
+                    opacity: deviceAction.down
+                        ? Theme.statePressedOpacity
+                        : deviceRowHover.hovered ? Theme.stateHoverOpacity : 0
+                }
             }
 
             contentItem: RowLayout {
                 spacing: Metrics.spacingMd
 
                 M3Icon {
-                    Layout.leftMargin: Metrics.spacingLg
+                    Layout.leftMargin: Metrics.listItemInset
+                    Layout.preferredWidth: Metrics.listLeadingIconSize
                     name: BluetoothService.deviceIconName(deviceRow.device)
                     size: 24
-                    color: deviceRow.device.connected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
+                    color: Theme.scheme.onSurface
                 }
 
                 ColumnLayout {
@@ -246,7 +215,7 @@ M3Panel {
                     M3Text {
                         Layout.fillWidth: true
                         text: BluetoothService.deviceName(deviceRow.device)
-                        color: deviceRow.device.connected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
+                        color: Theme.scheme.onSurface
                         font.pixelSize: 13
                         font.weight: Font.Medium
                         elide: Text.ElideRight
@@ -255,27 +224,40 @@ M3Panel {
                     M3Text {
                         Layout.fillWidth: true
                         text: BluetoothService.deviceDescription(deviceRow.device)
-                        color: deviceRow.device.connected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurfaceVariant
+                        visible: !deviceRow.newDevice && text.length > 0
+                        color: Theme.scheme.onSurfaceVariant
                         font.pixelSize: 12
                         elide: Text.ElideRight
                     }
                 }
 
-                M3ProgressRing {
+                Item {
                     visible: deviceRow.busy
-                    Layout.preferredWidth: 32
-                    Layout.preferredHeight: 32
-                    Layout.rightMargin: deviceMenuButton.visible ? 0 : Metrics.spacingLg
-                    indeterminate: true
-                    color: deviceRow.device.connected ? Theme.scheme.onSecondaryContainer : Theme.scheme.primary
+                    Layout.preferredWidth: 36
+                    Layout.preferredHeight: 36
+                    Layout.rightMargin: deviceMenuButton.visible ? 0 : Metrics.listItemInset
+
+                    M3ProgressRing {
+                        anchors.centerIn: parent
+                        width: 24
+                        height: 24
+                        indeterminate: true
+                        color: Theme.scheme.primary
+                    }
                 }
 
-                M3Icon {
+                Item {
                     visible: !deviceRow.busy && deviceRow.newDevice
-                    Layout.rightMargin: deviceMenuButton.visible ? 0 : Metrics.spacingLg
-                    name: "add"
-                    size: 20
-                    color: deviceRow.device.connected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurfaceVariant
+                    Layout.preferredWidth: 36
+                    Layout.preferredHeight: 36
+                    Layout.rightMargin: Metrics.listItemInset
+
+                    M3Icon {
+                        anchors.centerIn: parent
+                        name: "add"
+                        size: 20
+                        color: Theme.scheme.onSurfaceVariant
+                    }
                 }
             }
 
@@ -290,16 +272,16 @@ M3Panel {
             visible: !deviceRow.newDevice
             anchors {
                 right: parent.right
-                rightMargin: Metrics.spacingSm
+                rightMargin: Metrics.listItemInset
                 top: parent.top
-                topMargin: 14
+                topMargin: (deviceRow.collapsedHeight - deviceMenuButton.height) / 2
             }
             width: 36
             height: 36
             iconName: "more_vert"
             iconSize: 20
             style: M3Button.Text
-            contentColor: deviceRow.device.connected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurfaceVariant
+            contentColor: Theme.scheme.onSurfaceVariant
             Accessible.name: qsTr("Settings for %1").arg(BluetoothService.deviceName(deviceRow.device))
             onClicked: deviceMenu.open()
 
@@ -359,7 +341,7 @@ M3Panel {
                         }
                     }
 
-                    DeviceMenuItem {
+                    PopupMenuItem {
                         label: deviceRow.device.connected ? "Disconnect" : "Connect"
                         menuIcon: deviceRow.device.connected ? "link_off" : "link"
                         enabled: !deviceRow.busy && !deviceRow.device.blocked
@@ -371,7 +353,7 @@ M3Panel {
                         }
                     }
 
-                    DeviceMenuItem {
+                    PopupMenuItem {
                         label: deviceRow.device.trusted ? "Untrust device" : "Trust device"
                         menuIcon: deviceRow.device.trusted ? "verified_user" : "add_moderator"
                         Layout.fillWidth: true
@@ -382,7 +364,7 @@ M3Panel {
                         }
                     }
 
-                    DeviceMenuItem {
+                    PopupMenuItem {
                         label: "Rename device"
                         menuIcon: "edit"
                         Layout.fillWidth: true
@@ -393,7 +375,7 @@ M3Panel {
                         }
                     }
 
-                    DeviceMenuItem {
+                    PopupMenuItem {
                         label: deviceRow.device.blocked ? "Unblock device" : "Block device"
                         menuIcon: deviceRow.device.blocked ? "lock_open" : "block"
                         Layout.fillWidth: true
@@ -413,7 +395,7 @@ M3Panel {
                         opacity: 0.5
                     }
 
-                    DeviceMenuItem {
+                    PopupMenuItem {
                         label: "Forget device"
                         menuIcon: "delete"
                         itemColor: Theme.scheme.error
@@ -434,12 +416,12 @@ M3Panel {
                 left: parent.left
                 right: parent.right
                 top: parent.top
-                topMargin: 63
+                topMargin: deviceRow.collapsedHeight - 1
                 leftMargin: Metrics.spacingLg
                 rightMargin: Metrics.spacingLg
             }
             height: 1
-            color: deviceRow.device.connected ? Theme.scheme.onSecondaryContainer : Theme.scheme.outlineVariant
+            color: Theme.scheme.outlineVariant
             opacity: 0.35
         }
 
@@ -451,14 +433,14 @@ M3Panel {
                 left: parent.left
                 right: parent.right
                 top: parent.top
-                topMargin: 64 + Metrics.spacingMd
+                topMargin: deviceRow.collapsedHeight + Metrics.spacingMd
                 leftMargin: Metrics.spacingLg
                 rightMargin: Metrics.spacingLg
             }
             request: deviceRow.hasPairingPrompt ? BluetoothService.pairingRequest : ({})
             embedded: true
-            contentColor: deviceRow.device.connected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurface
-            secondaryColor: deviceRow.device.connected ? Theme.scheme.onSecondaryContainer : Theme.scheme.onSurfaceVariant
+            contentColor: Theme.scheme.onSurface
+            secondaryColor: Theme.scheme.onSurfaceVariant
         }
 
         Popup {
@@ -713,8 +695,8 @@ M3Panel {
                 right: parent.right
                 top: parent.top
                 bottom: parent.bottom
-                leftMargin: Metrics.spacingLg
-                rightMargin: Metrics.spacingLg
+                leftMargin: Metrics.listOuterInset
+                rightMargin: Metrics.listOuterInset
                 topMargin: Metrics.spacingSm
                 bottomMargin: Metrics.spacingSm
             }
@@ -746,6 +728,7 @@ M3Panel {
                 M3Text {
                     visible: BluetoothService.pairedDevices.length > 0
                     width: parent.width
+                    leftPadding: Metrics.listSectionHeaderInset
                     height: visible ? 32 : 0
                     text: "Paired devices"
                     color: Theme.scheme.onSurfaceVariant
@@ -767,6 +750,7 @@ M3Panel {
 
                 M3Text {
                     width: parent.width
+                    leftPadding: Metrics.listSectionHeaderInset
                     height: 38
                     text: "Not paired"
                     color: Theme.scheme.onSurfaceVariant

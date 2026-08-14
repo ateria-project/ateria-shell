@@ -24,8 +24,8 @@ M3Panel {
         readonly property color containerColor: rowRoot.selected ? Theme.scheme.secondaryContainer : "transparent"
 
         implicitHeight: 46
-        leftPadding: 16
-        rightPadding: 16
+        leftPadding: Metrics.listItemInset
+        rightPadding: Metrics.listItemInset
 
         focusPolicy: Qt.StrongFocus
         hoverEnabled: true
@@ -83,6 +83,7 @@ M3Panel {
             spacing: 12
 
             M3Icon {
+                Layout.preferredWidth: Metrics.listLeadingIconSize
                 visible: rowRoot.iconName.length > 0
                 name: rowRoot.iconName
                 size: 20
@@ -126,8 +127,8 @@ M3Panel {
             right: parent.right
             top: header.bottom
             bottom: parent.bottom
-            leftMargin: 16
-            rightMargin: 16
+            leftMargin: Metrics.listOuterInset
+            rightMargin: Metrics.listOuterInset
             topMargin: Metrics.spacingXs
             bottomMargin: Metrics.spacingSm
         }
@@ -144,6 +145,7 @@ M3Panel {
 
             M3Text {
                 width: parent.width
+                leftPadding: Metrics.listSectionHeaderInset
                 height: 32
                 text: "Output"
                 color: Theme.scheme.onSurfaceVariant
@@ -177,6 +179,7 @@ M3Panel {
 
             M3Text {
                 width: parent.width
+                leftPadding: Metrics.listSectionHeaderInset
                 height: 32
                 text: "Input"
                 color: Theme.scheme.onSurfaceVariant

@@ -13,6 +13,8 @@ ComboBox {
     property color menuColor: Theme.scheme.surfaceContainerHigh
     property color selectedColor: Theme.scheme.secondaryContainer
     property color selectedContentColor: Theme.scheme.onSecondaryContainer
+    property bool alwaysShowContainer: false
+    property int textAlignment: Text.AlignRight
 
     implicitWidth: Math.max(120, contentRow.implicitWidth + leftPadding + rightPadding)
     implicitHeight: 40
@@ -36,7 +38,7 @@ ComboBox {
             color: root.contentColor
             font.pixelSize: 14
             elide: Text.ElideRight
-            horizontalAlignment: Text.AlignRight
+            horizontalAlignment: root.textAlignment
             textFormat: Text.PlainText
         }
     }
@@ -60,7 +62,8 @@ ComboBox {
 
     background: Rectangle {
         radius: Metrics.radiusSm
-        color: root.hovered || root.activeFocus || root.visualFocus || root.popup.visible
+        color: root.alwaysShowContainer
+            || root.hovered || root.activeFocus || root.visualFocus || root.popup.visible
             ? root.containerColor
             : "transparent"
 

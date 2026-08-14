@@ -13,7 +13,7 @@ TransientPanelWindow {
     id: root
 
     property real panelWidth: 396
-    property real maximumPanelHeight: 450
+    property real maximumPanelHeight: 500
     property real _pageTravelDistance: panelWidth
 
     open: SurfaceController.quickSettingsOpen
@@ -75,7 +75,7 @@ TransientPanelWindow {
         onBackRequested: {
             if (navigationStack.depth > 1 && !navigationStack.busy) {
                 root._pageTravelDistance = panelViewport.width;
-                navigationStack.pop(null, StackView.PopTransition);
+                navigationStack.pop();
             }
         }
         onResetRequested: {
@@ -92,6 +92,12 @@ TransientPanelWindow {
             return bluetoothPageComponent;
         case "brightness":
             return brightnessPageComponent;
+        case "wifi":
+            return wifiPageComponent;
+        case "wifi-add":
+            return addWifiNetworkPageComponent;
+        case "wifi-saved":
+            return savedWifiNetworksPageComponent;
         default:
             return null;
         }
@@ -220,6 +226,30 @@ TransientPanelWindow {
         id: bluetoothPageComponent
 
         BluetoothPage {
+            controller: navigationController
+        }
+    }
+
+    Component {
+        id: wifiPageComponent
+
+        WifiPage {
+            controller: navigationController
+        }
+    }
+
+    Component {
+        id: addWifiNetworkPageComponent
+
+        AddWifiNetworkPage {
+            controller: navigationController
+        }
+    }
+
+    Component {
+        id: savedWifiNetworksPageComponent
+
+        SavedWifiNetworksPage {
             controller: navigationController
         }
     }

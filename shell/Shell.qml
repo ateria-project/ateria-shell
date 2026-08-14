@@ -13,6 +13,7 @@ import qs.features.wallpaper
 import qs.platform.bluetooth
 import qs.platform.clipboard
 import qs.platform.notifications
+import qs.platform.network
 import qs.platform.settings
 import qs.platform.workspace
 import qs.shell
@@ -84,6 +85,7 @@ Scope {
         WallpaperController.initialize();
         NotificationService.initialize();
         BluetoothService.initialize();
+        NetworkService.initialize();
         ClipboardService.initialize();
     }
 

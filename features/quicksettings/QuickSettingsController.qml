@@ -9,7 +9,10 @@ QtObject {
     readonly property var validPages: ({
         "audio": true,
         "bluetooth": true,
-        "brightness": true
+        "brightness": true,
+        "wifi": true,
+        "wifi-add": true,
+        "wifi-saved": true
     })
 
     signal pageRequested(string page)

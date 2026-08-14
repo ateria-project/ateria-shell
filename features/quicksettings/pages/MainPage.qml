@@ -52,7 +52,10 @@ M3Panel {
                 subtitle: NetworkService.wifiStatusText
                 showDetails: true
                 Layout.fillWidth: true
-                onClicked: NetworkService.setWifiEnabled(!NetworkService.wifiEnabled)
+                onClicked: {
+                    if (root.controller)
+                        root.controller.pushPage("wifi");
+                }
             }
 
             QuickSettingsTile {

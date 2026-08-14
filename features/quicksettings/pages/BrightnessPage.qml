@@ -36,8 +36,8 @@ M3Panel {
                 left: parent.left
                 right: parent.right
                 top: parent.top
-                leftMargin: Metrics.spacingLg
-                rightMargin: Metrics.spacingLg
+                leftMargin: Metrics.listItemInset
+                rightMargin: Metrics.listItemInset
                 topMargin: Metrics.spacingSm
             }
 
@@ -45,7 +45,8 @@ M3Panel {
                 id: displayIcon
 
                 name: rowRoot.monitor.type === "internal" ? "laptop_chromebook" : "desktop_windows"
-                size: 26
+                size: Metrics.listLeadingIconSize
+                width: Metrics.listLeadingIconSize
                 color: rowRoot.monitor.available ? Theme.scheme.onSurface : Theme.scheme.onSurfaceVariant
 
                 anchors {
@@ -57,9 +58,9 @@ M3Panel {
             Column {
                 anchors {
                     left: displayIcon.right
-                    leftMargin: Metrics.spacingLg
+                    leftMargin: Metrics.listItemContentGap
                     right: valueLabel.left
-                    rightMargin: Metrics.spacingLg
+                    rightMargin: Metrics.listItemInset
                     verticalCenter: parent.verticalCenter
                 }
 
@@ -143,8 +144,8 @@ M3Panel {
             right: parent.right
             top: header.bottom
             bottom: parent.bottom
-            leftMargin: 16
-            rightMargin: 16
+            leftMargin: Metrics.listOuterInset
+            rightMargin: Metrics.listOuterInset
             topMargin: Metrics.spacingXs
             bottomMargin: Metrics.spacingSm
         }
@@ -161,6 +162,7 @@ M3Panel {
 
             M3Text {
                 width: parent.width
+                leftPadding: Metrics.listSectionHeaderInset
                 height: 32
                 text: "Displays"
                 color: Theme.scheme.onSurfaceVariant
