@@ -153,16 +153,15 @@ M3Panel {
                     }
 
                     PopupMenuItem {
-                        visible: networkRow.autoconnect
-                        label: "Disable auto-connect"
-                        menuIcon: "pause_circle"
+                        label: networkRow.autoconnect ? "Disable auto-connect" : "Enable auto-connect"
+                        menuIcon: networkRow.autoconnect ? "pause_circle" : "play_circle"
                         Layout.fillWidth: true
                         onActivated: {
                             networkMenu.close();
                             root.pageError = "";
                             root.pendingOperation = "autoconnect";
                             root.pendingNetworkId = networkRow.networkId;
-                            if (!NetworkService.setAutoconnect(networkRow.networkId, false)) {
+                            if (!NetworkService.setAutoconnect(networkRow.networkId, !networkRow.autoconnect)) {
                                 root.pendingOperation = "";
                                 root.pendingNetworkId = "";
                                 root.pageError = NetworkService.lastError;
@@ -171,11 +170,10 @@ M3Panel {
                     }
 
                     Rectangle {
-                        visible: networkRow.autoconnect
                         Layout.fillWidth: true
                         Layout.topMargin: 2
                         Layout.bottomMargin: 2
-                        Layout.preferredHeight: visible ? 1 : 0
+                        Layout.preferredHeight: 1
                         color: Theme.scheme.outlineVariant
                         opacity: 0.5
                     }
@@ -209,10 +207,9 @@ M3Panel {
             root.pageError = "";
         }
 
-        function onNetworkAutoconnectChanged(networkId: string, enabled: bool) {
+        function onNetworkAutoconnectChanged(networkId: string) {
             if (root.pendingOperation !== "autoconnect"
-                    || root.pendingNetworkId !== networkId
-                    || enabled)
+                    || root.pendingNetworkId !== networkId)
                 return;
             root.pendingOperation = "";
             root.pendingNetworkId = "";
