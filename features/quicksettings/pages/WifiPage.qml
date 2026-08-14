@@ -15,7 +15,6 @@ M3Panel {
     property string credentialNetworkId: ""
     property string credentialSsid: ""
     property int credentialSecurity: NetworkService.securityWpaPersonal
-    readonly property bool scanIndicatorVisible: NetworkService.scanning || scanMinimumTimer.running
 
     implicitHeight: 450
 
@@ -65,11 +64,7 @@ M3Panel {
         scanRetryTimer.restart();
     }
 
-    Component.onCompleted: {
-        if (NetworkService.scanning)
-            scanMinimumTimer.restart();
-        Qt.callLater(root.requestScanOnOpen);
-    }
+    Component.onCompleted: Qt.callLater(root.requestScanOnOpen)
     Component.onDestruction: root.setKeyboardInputActive(false)
     StackView.onActivated: Qt.callLater(root.requestScanOnOpen)
 
@@ -90,11 +85,6 @@ M3Panel {
             else
                 scanRetryTimer.stop();
         }
-
-        function onScanningChanged() {
-            if (NetworkService.scanning)
-                scanMinimumTimer.restart();
-        }
     }
 
     Timer {
@@ -103,13 +93,6 @@ M3Panel {
         interval: 500
         repeat: false
         onTriggered: root.requestScanOnOpen()
-    }
-
-    Timer {
-        id: scanMinimumTimer
-
-        interval: 3000
-        repeat: false
     }
 
     Timer {
@@ -404,10 +387,10 @@ M3Panel {
             top: header.bottom
         }
         z: 1
-        visible: root.scanIndicatorVisible || NetworkService.currentOperation === "connect"
+        visible: NetworkService.scanning || NetworkService.currentOperation === "connect"
         height: 2
         indeterminate: true
-        accessibleName: root.scanIndicatorVisible
+        accessibleName: NetworkService.scanning
             ? qsTr("Scanning for Wi-Fi networks")
             : qsTr("Connecting to Wi-Fi")
     }
