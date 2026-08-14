@@ -1,6 +1,6 @@
 import QtQuick
 import Quickshell
-import "LauncherSearch.js" as LauncherSearch
+import Ateria.Search
 
 QtObject {
     id: root
@@ -17,12 +17,7 @@ QtObject {
             return entry && !entry.noDisplay && String(entry.name || "").trim().length > 0;
         });
     }
-    readonly property var applicationIndex: LauncherSearch.createApplicationIndex(root.applications)
-    readonly property var applicationUsage: LauncherSearch.createUsageData(root.applicationIndex, LauncherSettings.usageHistory, root.rankingTime)
-
-    readonly property var results: {
-        return LauncherSearch.rankPreparedApplicationIndex(root.applicationIndex, root.query, root.applicationUsage);
-    }
+    readonly property alias results: applicationSearchModel.results
 
     readonly property var currentApplication: root.currentIndex >= 0 && root.currentIndex < root.results.length ? root.results[root.currentIndex] : null
 
@@ -34,6 +29,15 @@ QtObject {
         function onApplicationsChanged() {
             root.desktopEntriesRevision += 1;
         }
+    }
+
+    property LauncherSearchModel searchModel: LauncherSearchModel {
+        id: applicationSearchModel
+
+        applications: root.applications
+        query: root.query
+        usageHistory: LauncherSettings.usageHistory
+        rankingTime: root.rankingTime
     }
 
     function moveSelection(offset: int) {

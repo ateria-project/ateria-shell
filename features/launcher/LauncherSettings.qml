@@ -1,8 +1,8 @@
 pragma Singleton
 
 import QtQuick
+import Ateria.Search
 import qs.platform.settings
-import "LauncherSearch.js" as LauncherSearch
 
 QtObject {
     id: root
