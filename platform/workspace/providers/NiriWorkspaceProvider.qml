@@ -2,7 +2,6 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import qs.platform.compositor
 
 // Translates Niri events and commands to WorkspaceService's canonical contract.
@@ -10,7 +9,6 @@ Singleton {
     id: root
 
     property string lastError: ""
-    property int pendingWorkspaceIndex: -1
 
     signal workspacesReset(var workspaces)
     signal workspaceActivated(int workspaceId, bool focused)
@@ -145,37 +143,16 @@ Singleton {
         }
     }
 
-    function runAction(process, action: string, args) {
-        process.exec(["niri", "msg", "action", action].concat(args ?? []));
-    }
-
     function focusWorkspace(workspaceIndex: int, outputName: string, focusedOutputName: string) {
-        if (workspaceIndex < 1 || focusMonitorProcess.running || focusWorkspaceProcess.running)
+        if (workspaceIndex < 1)
             return;
-
-        const targetOutput = String(outputName).trim();
-        const currentOutput = String(focusedOutputName).trim();
-        const needsMonitorFocus = targetOutput.length > 0
-            && targetOutput.toLowerCase() !== currentOutput.toLowerCase();
-        if (needsMonitorFocus) {
-            root.pendingWorkspaceIndex = workspaceIndex;
-            root.runAction(focusMonitorProcess, "focus-monitor", [targetOutput]);
-            return;
-        }
-
-        root.pendingWorkspaceIndex = -1;
-        root.runFocusWorkspace(workspaceIndex);
-    }
-
-    function runFocusWorkspace(workspaceIndex: int) {
-        root.runAction(focusWorkspaceProcess, "focus-workspace", [String(workspaceIndex)]);
+        NiriService.focusWorkspace(workspaceIndex, outputName, focusedOutputName);
     }
 
     function focusWindow(windowId: double) {
-        if (windowId < 1 || focusWindowProcess.running)
+        if (windowId < 1)
             return;
-
-        root.runAction(focusWindowProcess, "focus-window", ["--id", String(windowId)]);
+        NiriService.focusWindow(windowId);
     }
 
     Connections {
@@ -190,30 +167,9 @@ Singleton {
                 console.error("Could not translate Niri workspace event:", root.lastError, JSON.stringify(event));
             }
         }
-    }
 
-    Process {
-        id: focusMonitorProcess
-
-        onExited: (exitCode, exitStatus) => {
-            const workspaceIndex = root.pendingWorkspaceIndex;
-            root.pendingWorkspaceIndex = -1;
-            if (workspaceIndex < 1)
-                return;
-            if (exitCode !== 0) {
-                root.lastError = "Could not focus monitor; exit code " + exitCode;
-                console.warn(root.lastError, "status:", exitStatus);
-                return;
-            }
-            root.runFocusWorkspace(workspaceIndex);
+        function onActionFailed(action, message) {
+            root.lastError = message;
         }
-    }
-
-    Process {
-        id: focusWorkspaceProcess
-    }
-
-    Process {
-        id: focusWindowProcess
     }
 }

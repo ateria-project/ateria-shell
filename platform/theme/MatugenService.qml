@@ -3,66 +3,95 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.platform.wallpaper
 import "MatugenParser.js" as MatugenParser
 
 Singleton {
     id: root
 
-    readonly property string configPath: root.localPath(Quickshell.shellPath("matugen/config.toml"))
-    readonly property string matugenPath: root.localPath(Quickshell.shellPath("tools/ateria-matugen"))
+    readonly property string configPath: WallpaperCacheService.localPath(Quickshell.shellPath("matugen/config.toml"))
+    readonly property string matugenPath: WallpaperCacheService.localPath(Quickshell.shellPath("tools/ateria-matugen"))
+    property string requestedSource: ""
     property string requestedPath: ""
     property string inFlightPath: ""
     property string lastError: ""
+    property bool waitingForThumbnail: false
+    property string thumbnailWaitSource: ""
     readonly property bool busy: generateProcess.running
 
     signal generated(var lightScheme, var darkScheme, string sourcePath)
     signal generationFailed(string sourcePath, string message)
 
-    function localPath(source): string {
-        const value = String(source ?? "");
-        if (!value.startsWith("file:"))
-            return value;
-
-        return decodeURIComponent(value.replace(/^file:\/\//, ""));
-    }
-
     function isVideoPath(path): bool {
-        return /\.(mp4|webm|mkv|gif)$/i.test(path);
+        return WallpaperCacheService.isVideo(path);
     }
 
     function request(source) {
-        const path = root.localPath(source);
-        if (path.length === 0 || (path === root.requestedPath && (generateProcess.running || requestTimer.running)))
+        const sourceUrl = String(source ?? "");
+        const path = WallpaperCacheService.localPath(sourceUrl);
+        if (path.length === 0 || (path === root.requestedPath
+                && (generateProcess.running || requestTimer.running || root.waitingForThumbnail)))
             return;
 
+        thumbnailWaitTimer.stop();
+        root.waitingForThumbnail = false;
+        root.thumbnailWaitSource = "";
+        root.requestedSource = sourceUrl;
         root.requestedPath = path;
         requestTimer.restart();
+    }
+
+    function runMatugen(imagePath: string): void {
+        root.waitingForThumbnail = false;
+        root.thumbnailWaitSource = "";
+        thumbnailWaitTimer.stop();
+        root.inFlightPath = root.requestedPath;
+        generateProcess.exec([
+            root.matugenPath, "image", imagePath,
+            "--config", root.configPath,
+            "--source-color-index", "0",
+            "--json", "hex", "--quiet"
+        ]);
+    }
+
+    function failThumbnailWait(): void {
+        const sourcePath = root.requestedPath;
+        root.waitingForThumbnail = false;
+        root.thumbnailWaitSource = "";
+        thumbnailWaitTimer.stop();
+        root.lastError = qsTr("Could not prepare a preview for this video wallpaper.");
+        console.warn("MatugenService: " + root.lastError);
+        root.generationFailed(sourcePath, root.lastError);
+    }
+
+    function resumeThumbnailWait(): void {
+        if (!root.waitingForThumbnail || generateProcess.running
+                || root.thumbnailWaitSource !== root.requestedSource)
+            return;
+
+        const entry = WallpaperCacheService.entryFor(root.requestedSource);
+        const thumbnailSource = String(entry?.thumbnailSource ?? "");
+        if (thumbnailSource.length > 0) {
+            root.runMatugen(WallpaperCacheService.localPath(thumbnailSource));
+            return;
+        }
+        if (entry !== null && entry.thumbnailStatus === "failed")
+            root.failThumbnailWait();
     }
 
     function startGeneration() {
         if (generateProcess.running || root.requestedPath.length === 0)
             return;
 
-        root.inFlightPath = root.requestedPath;
-        if (root.isVideoPath(root.inFlightPath)) {
-            generateProcess.exec([
-                "bash",
-                "-c",
-                "n=\"$(basename \"$1\")\"; t=\"/tmp/ateria_thumbs/$n.jpg\"; if [ ! -f \"$t\" ]; then mkdir -p /tmp/ateria_thumbs && nice -n 19 ffmpeg -loglevel error -y -threads 1 -i \"$1\" -map 0:v:0 -frames:v 1 -vf 'scale=640:-2' -q:v 4 \"$t\" </dev/null; fi; \"$2\" image \"$t\" --config \"$3\" --source-color-index 0 --json hex --quiet",
-                "_",
-                root.inFlightPath,
-                root.matugenPath,
-                root.configPath
-            ]);
+        if (root.isVideoPath(root.requestedPath)) {
+            root.waitingForThumbnail = true;
+            root.thumbnailWaitSource = root.requestedSource;
+            thumbnailWaitTimer.restart();
+            WallpaperCacheService.expeditePendingWork();
+            root.resumeThumbnailWait();
             return;
         }
-
-        generateProcess.exec([
-            root.matugenPath, "image", root.inFlightPath,
-            "--config", root.configPath,
-            "--source-color-index", "0",
-            "--json", "hex", "--quiet"
-        ]);
+        root.runMatugen(root.requestedPath);
     }
 
     function finishGeneration(exitCode) {
@@ -100,6 +129,22 @@ Singleton {
         interval: root.isVideoPath(root.requestedPath) ? 2000 : 100
         repeat: false
         onTriggered: root.startGeneration()
+    }
+
+    Timer {
+        id: thumbnailWaitTimer
+
+        interval: 8000
+        repeat: false
+        onTriggered: root.failThumbnailWait()
+    }
+
+    Connections {
+        target: WallpaperCacheService
+
+        function onRevisionChanged(): void {
+            root.resumeThumbnailWait();
+        }
     }
 
     Process {

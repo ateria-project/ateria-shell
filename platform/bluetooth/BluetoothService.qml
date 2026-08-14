@@ -3,17 +3,31 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Bluetooth
-import Quickshell.Io
+import Ateria.Bluetooth
 
 Singleton {
     id: root
 
     property bool initialized: false
-    property bool agentReady: false
-    property int agentRestartAttempts: 0
     property int incomingPairingRetryCount: 0
-    property var pairingRequest: null
-    property string agentError: ""
+    readonly property bool agentReady: BluetoothAgent.ready
+    readonly property var pairingRequest: {
+        if (!BluetoothAgent.hasRequest)
+            return null;
+
+        const request = BluetoothAgent.request;
+        const path = String(request.path ?? "");
+        for (const device of root.devices) {
+            if (String(device.dbusPath ?? "") !== path)
+                continue;
+            return Object.assign({}, request, {
+                "name": root.deviceName(device),
+                "address": String(device.address ?? "")
+            });
+        }
+        return request;
+    }
+    readonly property string agentError: BluetoothAgent.lastError
 
     readonly property bool hasPairingRequest: root.pairingRequest !== null
 
@@ -75,7 +89,7 @@ Singleton {
             return;
 
         root.initialized = true;
-        agentProcess.running = true;
+        BluetoothAgent.initialize();
         incomingPairingEnsureTimer.restart();
     }
 
@@ -102,59 +116,11 @@ Singleton {
     onDiscoverableChanged: incomingPairingEnsureTimer.restart()
     onPairableChanged: incomingPairingEnsureTimer.restart()
 
-    function handleAgentLine(line: string) {
-        const trimmed = line.trim();
-        if (trimmed.length === 0)
-            return;
-
-        let message;
-        try {
-            message = JSON.parse(trimmed);
-        } catch (error) {
-            console.warn("BluetoothService: Invalid agent response:", trimmed);
-            return;
-        }
-        if (!message || typeof message !== "object") {
-            console.warn("BluetoothService: Invalid agent message:", trimmed);
-            return;
-        }
-
-        switch (message.event) {
-        case "ready":
-            root.agentReady = true;
-            root.agentRestartAttempts = 0;
-            root.agentError = "";
-            break;
-        case "request":
-        case "display":
-            root.pairingRequest = message;
-            break;
-        case "cancelled":
-            if (!root.pairingRequest || message.id === undefined || root.pairingRequest.id === message.id)
-                root.pairingRequest = null;
-            break;
-        case "released":
-            root.agentReady = false;
-            root.pairingRequest = null;
-            break;
-        case "error":
-            root.agentError = String(message.message ?? "Bluetooth pairing agent failed");
-            console.warn("BluetoothService:", root.agentError);
-            break;
-        }
-    }
-
     function respondToPairing(accepted: bool, value: string): bool {
-        if (!root.pairingRequest || root.pairingRequest.event !== "request" || !agentProcess.running)
+        if (!root.pairingRequest || root.pairingRequest.event !== "request" || !root.agentReady)
             return false;
 
-        agentProcess.write(JSON.stringify({
-            id: root.pairingRequest.id,
-            accepted: accepted,
-            value: value
-        }) + "\n");
-        root.pairingRequest = null;
-        return true;
+        return BluetoothAgent.respond(accepted, value);
     }
 
     function acceptPairing(value: string): bool {
@@ -167,7 +133,7 @@ Singleton {
 
     function dismissPairingDisplay() {
         if (root.pairingRequest && root.pairingRequest.event === "display")
-            root.pairingRequest = null;
+            BluetoothAgent.dismissDisplay();
     }
 
     function pairingRequestDevice() {
@@ -467,34 +433,6 @@ Singleton {
         return names[normalized] ?? "a Bluetooth service";
     }
 
-    Process {
-        id: agentProcess
-
-        command: ["python3", Quickshell.shellDir + "/tools/ateria-bluetooth-agent"]
-        stdinEnabled: true
-
-        stdout: SplitParser {
-            splitMarker: "\n"
-            onRead: data => root.handleAgentLine(data)
-        }
-
-        stderr: SplitParser {
-            splitMarker: "\n"
-            onRead: data => console.warn("BluetoothService agent:", data)
-        }
-
-        onExited: exitCode => {
-            root.agentReady = false;
-            root.pairingRequest = null;
-            if (root.initialized) {
-                root.agentRestartAttempts++;
-                if (exitCode !== 0 && root.agentError.length === 0)
-                    root.agentError = "Bluetooth pairing agent stopped with code " + exitCode;
-                agentRestartTimer.restart();
-            }
-        }
-    }
-
     Timer {
         id: incomingPairingEnsureTimer
 
@@ -524,14 +462,4 @@ Singleton {
         }
     }
 
-    Timer {
-        id: agentRestartTimer
-
-        interval: Math.min(30000, 1000 * Math.pow(2, root.agentRestartAttempts))
-        repeat: false
-        onTriggered: {
-            if (root.initialized && !agentProcess.running)
-                agentProcess.running = true;
-        }
-    }
 }
