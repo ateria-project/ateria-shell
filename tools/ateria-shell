@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-source_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+source_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 native_build_dir=${ATERIA_NATIVE_BUILD_DIR:-"$source_root/.build/native"}
 
 if [ "${ATERIA_SKIP_NATIVE_BUILD:-0}" != "1" ]; then
@@ -14,6 +14,19 @@ if [ -n "${QML_IMPORT_PATH:-}" ]; then
     export QML_IMPORT_PATH="$native_qml_path:$QML_IMPORT_PATH"
 else
     export QML_IMPORT_PATH="$native_qml_path"
+fi
+
+# Keep Quickshell's configured identity when this checkout is installed as the
+# default config. Plain `qs ipc` calls select that identity, so launching the
+# same files through `--path` would make existing keybinds target a different
+# instance. Fall back to path mode when running an uninstalled checkout.
+quickshell_config_root=${XDG_CONFIG_HOME:-"$HOME/.config"}/quickshell
+default_config="$quickshell_config_root/default"
+if [ -d "$default_config" ]; then
+    resolved_default=$(CDPATH= cd -- "$default_config" && pwd -P)
+    if [ "$resolved_default" = "$source_root" ]; then
+        exec quickshell --config default "$@"
+    fi
 fi
 
 exec quickshell --path "$source_root" "$@"
