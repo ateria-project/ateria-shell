@@ -16,6 +16,16 @@ if [ "${ATERIA_SKIP_NATIVE_BUILD:-0}" != "1" ]; then
     cmake --build "$native_build_dir" --parallel --target ateria_native_modules
 fi
 
+# Qt Multimedia announces its FFmpeg backend and can emit verbose decoder
+# diagnostics during normal playback. Keep those categories quiet without
+# replacing any logging rules supplied by the user.
+ateria_ffmpeg_log_rules='qt.multimedia.ffmpeg=false;qt.multimedia.ffmpeg.*=false'
+if [ -n "${QT_LOGGING_RULES:-}" ]; then
+    export QT_LOGGING_RULES="$QT_LOGGING_RULES;$ateria_ffmpeg_log_rules"
+else
+    export QT_LOGGING_RULES="$ateria_ffmpeg_log_rules"
+fi
+
 native_qml_path="$native_build_dir/qml"
 if [ -n "${QML_IMPORT_PATH:-}" ]; then
     export QML_IMPORT_PATH="$native_qml_path:$QML_IMPORT_PATH"
