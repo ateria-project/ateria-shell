@@ -11,7 +11,9 @@
 #define ATERIA_RESTORE_QT_SIGNALS_KEYWORD
 #undef signals
 #endif
+extern "C" {
 #include <NetworkManager.h>
+}
 #ifdef ATERIA_RESTORE_QT_SIGNALS_KEYWORD
 #define signals Q_SIGNALS
 #undef ATERIA_RESTORE_QT_SIGNALS_KEYWORD
