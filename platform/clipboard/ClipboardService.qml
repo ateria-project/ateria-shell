@@ -49,6 +49,13 @@ Singleton {
             root.refresh();
         } else {
             historyRefreshTimer.stop();
+            // The history can be large and is only used by the clipboard
+            // panel. Drop it when the panel closes so it does not stay
+            // resident for the rest of the session.
+            if (!nextActive && root.entries.length > 0) {
+                root.entries = [];
+                root.historyDirty = true;
+            }
         }
     }
 
@@ -115,8 +122,10 @@ Singleton {
         } else {
             root.available = true;
             root.lastError = "";
-            root.entries = ClipboardParser.parseList(output);
-            root.historyDirty = root.listRevision !== root.historyRevision;
+            // If the panel closed while cliphist was running, do not keep the
+            // parsed history resident. The next open refreshes it.
+            root.entries = root.viewActive ? ClipboardParser.parseList(output) : [];
+            root.historyDirty = !root.viewActive || root.listRevision !== root.historyRevision;
         }
 
         if (root.refreshPending || (exitCode === 0 && root.viewActive && root.historyDirty))
@@ -147,6 +156,7 @@ Singleton {
         // the binary file into QML, then list it only while the UI is visible.
         path: StandardPaths.writableLocation(StandardPaths.GenericCacheLocation) + "/cliphist/db"
         watchChanges: root.initialized && root.captureEnabled
+        preload: false
         blockAllReads: true
         printErrors: false
         onFileChanged: root.markHistoryDirty()
@@ -222,7 +232,8 @@ Singleton {
             }
 
             root.entryDeleted(deletedEntry);
-            root.refresh();
+            if (root.viewActive)
+                root.refresh();
         }
     }
 
@@ -242,7 +253,8 @@ Singleton {
 
             root.entries = [];
             root.historyCleared();
-            root.refresh();
+            if (root.viewActive)
+                root.refresh();
         }
     }
 

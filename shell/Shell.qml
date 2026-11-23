@@ -174,12 +174,22 @@ Scope {
         }
     }
 
-    NotificationOverlay {
-        id: notificationOverlay
+    DeferredPanelLoader {
+        id: notificationOverlayLoader
+        requested: NotificationOverlayController.visibleRequested && !SurfaceController.notificationPanelOpen
+
+        NotificationOverlay {
+            open: notificationOverlayLoader.presented
+        }
     }
 
-    BluetoothPairingOverlay {
-        id: bluetoothPairingOverlay
+    DeferredPanelLoader {
+        id: bluetoothPairingOverlayLoader
+        requested: BluetoothService.hasPairingRequest && !BluetoothPairingController.useInlinePrompt
+
+        BluetoothPairingOverlay {
+            open: bluetoothPairingOverlayLoader.presented
+        }
     }
 
     // IPC entry points must remain available while their heavier panels are
