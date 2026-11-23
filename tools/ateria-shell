@@ -25,6 +25,15 @@ else
     export QML_IMPORT_PATH="$native_qml_path"
 fi
 
+# Quickshell is linked against jemalloc. Its default per-thread arenas retain a
+# surprising amount of freed memory over a long-lived session, and the shell
+# creates hundreds of short-lived QML objects whenever a panel opens or closes.
+# Two arenas plus prompt decay keeps RSS substantially lower without affecting
+# the shell's modest allocation rate. Respect an explicit user setting.
+if [ -z "${MALLOC_CONF:-}" ]; then
+    export MALLOC_CONF="narenas:2,background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:1000"
+fi
+
 # Keep Quickshell's configured identity when this checkout is installed as the
 # default config. Plain `qs ipc` calls select that identity, so launching the
 # same files through `--path` would make existing keybinds target a different
