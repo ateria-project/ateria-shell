@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""Regenerate the shell's Material Symbols subset.
+
+Qt maps one copy of a variable font into memory for every distinct set of
+variable axes it renders. The full Material Symbols font is roughly 10 MB, so
+keeping a small subset that contains only the glyphs the shell uses saves
+tens of megabytes of address space without changing any rendered pixels.
+
+Requires fontTools (``pyftsubset``) and fontconfig (``fc-match``).
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+OUTPUT = ROOT / "assets/MaterialSymbolsOutlined-Ateria.ttf"
+FAMILY = "Material Symbols Outlined Ateria"
+POSTSCRIPT_NAME = "MaterialSymbolsOutlinedAteria"
+SKIP_DIRECTORIES = {".git", ".build", "build", ".idea"}
+
+# Any lowercase identifier may be an icon name. A harmless superset keeps the
+# generated subset stable when a conditional icon branch changes.
+IDENTIFIER = re.compile(r'"([a-z][a-z0-9_]*)"')
+SOURCE_SUFFIXES = {".qml", ".js"}
+# Ligature components in the font are ASCII letters, digits, underscore and a
+# few separators. Include the complete alphabet so every retained ligature can
+# still be shaped.
+EXTRA_CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_- ."
+
+
+def find_system_font() -> Path:
+    override = os.environ.get("ATERIA_MATERIAL_SYMBOLS_FONT")
+    if override:
+        path = Path(override).expanduser()
+        if path.is_file():
+            return path
+        raise SystemExit(f"ATERIA_MATERIAL_SYMBOLS_FONT does not exist: {path}")
+
+    if shutil.which("fc-match"):
+        result = subprocess.run(
+            ["fc-match", "-f", "%{file}", "Material Symbols Outlined"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        candidate = Path(result.stdout.strip())
+        if result.returncode == 0 and candidate.is_file() and candidate.suffix.lower() in {".ttf", ".otf"}:
+            return candidate
+
+    for candidate in (
+        Path("/usr/share/fonts/ttf-material-symbols-variable/MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf"),
+        Path("/usr/share/fonts/material-symbols/MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf"),
+    ):
+        if candidate.is_file():
+            return candidate
+
+    raise SystemExit(
+        "Could not find Material Symbols Outlined. Install the variable font "
+        "package or set ATERIA_MATERIAL_SYMBOLS_FONT."
+    )
+
+
+def icon_names() -> list[str]:
+    names: set[str] = set()
+    for path in ROOT.rglob("*"):
+        if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
+            continue
+        if any(part in SKIP_DIRECTORIES for part in path.relative_to(ROOT).parts):
+            continue
+        names.update(IDENTIFIER.findall(path.read_text(errors="ignore")))
+    return sorted(names)
+
+
+def rename_font(source: Path, destination: Path) -> None:
+    from fontTools.ttLib import TTFont
+
+    font = TTFont(source)
+    for record in font["name"].names:
+        if record.nameID in (1, 16):
+            record.string = FAMILY.encode(record.getEncoding())
+        elif record.nameID == 4:
+            record.string = (FAMILY + " Regular").encode(record.getEncoding())
+        elif record.nameID == 6:
+            record.string = POSTSCRIPT_NAME.encode(record.getEncoding())
+    font.save(destination)
+
+
+def main() -> int:
+    try:
+        from fontTools.ttLib import TTFont
+    except ImportError:
+        print("ateria-icon-font: fontTools is required (python-fonttools).", file=sys.stderr)
+        return 1
+
+    pyftsubset = shutil.which("pyftsubset")
+    if pyftsubset is None:
+        print("ateria-icon-font: pyftsubset is required (python-fonttools).", file=sys.stderr)
+        return 1
+
+    source = find_system_font()
+    source_font = TTFont(source)
+    if "fvar" not in source_font:
+        print(
+            f"ateria-icon-font: {source} is not a variable font; the shell needs "
+            "the FILL, GRAD, opsz and wght axes.",
+            file=sys.stderr,
+        )
+        return 1
+    axes = {axis.axisTag for axis in source_font["fvar"].axes}
+    missing_axes = {"FILL", "GRAD", "opsz", "wght"} - axes
+    if missing_axes:
+        print(
+            f"ateria-icon-font: {source} is missing variable axes: "
+            + ", ".join(sorted(missing_axes)),
+            file=sys.stderr,
+        )
+        return 1
+
+    names = icon_names()
+    glyph_names = set(source_font.getGlyphOrder())
+    existing = [name for name in names if name in glyph_names]
+    missing = [name for name in names if name not in glyph_names]
+    if not existing:
+        print("ateria-icon-font: no icon glyphs matched the system font.", file=sys.stderr)
+        return 1
+
+    with tempfile.TemporaryDirectory(prefix="ateria-icon-font-") as directory:
+        temporary = Path(directory)
+        names_file = temporary / "names.txt"
+        glyphs_file = temporary / "glyphs.txt"
+        subset_file = temporary / "subset.ttf"
+        renamed_file = temporary / "renamed.ttf"
+
+        names_file.write_text("\n".join(names) + "\n" + EXTRA_CHARACTERS + "\n")
+        glyphs_file.write_text("\n".join(existing) + "\n")
+
+        command = [
+            pyftsubset,
+            str(source),
+            f"--text-file={names_file}",
+            f"--glyphs-file={glyphs_file}",
+            "--no-layout-closure",
+            "--layout-features=rlig",
+            f"--output-file={subset_file}",
+            "--name-IDs=*",
+            "--name-languages=*",
+            "--glyph-names",
+            "--symbol-cmap",
+            "--legacy-cmap",
+            "--notdef-glyph",
+            "--notdef-outline",
+        ]
+        subprocess.run(command, check=True)
+        rename_font(subset_file, renamed_file)
+        OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+        staged = OUTPUT.with_name(f".{OUTPUT.name}.{os.getpid()}.tmp")
+        try:
+            shutil.copyfile(renamed_file, staged)
+            os.replace(staged, OUTPUT)
+        finally:
+            staged.unlink(missing_ok=True)
+
+    print(
+        f"Wrote {OUTPUT.relative_to(ROOT)} ({OUTPUT.stat().st_size // 1024} KiB) "
+        f"with {len(existing)} icon glyphs from {source}."
+    )
+    if missing:
+        preview = ", ".join(missing[:12])
+        if len(missing) > 12:
+            preview += ", ..."
+        print(
+            f"Note: {len(missing)} referenced names have no glyph in the system "
+            f"font (mostly non-icon strings): {preview}"
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
