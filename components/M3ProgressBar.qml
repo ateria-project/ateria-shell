@@ -16,6 +16,24 @@ Item {
         ? qsTr("In progress")
         : qsTr("%1% complete").arg(Math.round(Math.max(0, Math.min(1, progress)) * 100))
 
+    // Animated value used for drawing. Material animates determinate
+    // progress with a slow, non-bouncing settle instead of jumping to the
+    // new value; accessibility still reports the target immediately.
+    property real visualProgress: root.progress
+
+    Behavior on visualProgress {
+        enabled: !root.indeterminate
+
+        NumberAnimation {
+            // Compose's ProgressAnimationSpec is a critically damped spring
+            // (dampingRatio 1.0, stiffness 50, 0.001 visibility threshold):
+            // smooth, no overshoot, about 1.3 s to settle. OutQuart over
+            // the same span follows that response closely.
+            duration: 1300
+            easing.type: Easing.OutQuart
+        }
+    }
+
     // Lets repeated indicators share the same Material motion while beginning
     // at different points in its cycle.
     property real phaseOffset: 0
@@ -34,6 +52,7 @@ Item {
     Accessible.name: root.accessibleName
 
     onProgressChanged: bar.requestPaint()
+    onVisualProgressChanged: bar.requestPaint()
     onIndeterminateChanged: bar.requestPaint()
     onColorChanged: bar.requestPaint()
     onTrackColorChanged: bar.requestPaint()
@@ -123,7 +142,7 @@ Item {
         }
 
         function drawDeterminate(context, thickness) {
-            const progress = clamp(root.progress, 0, 1);
+            const progress = clamp(root.visualProgress, 0, 1);
             // Rounded caps contribute one track thickness to the physical gap.
             const adjustedGap = root.indicatorTrackGapSize + thickness;
             const gapFraction = width > 0 ? adjustedGap / width : 0;
