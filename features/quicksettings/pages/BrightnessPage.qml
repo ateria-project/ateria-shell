@@ -172,13 +172,22 @@ M3Panel {
             }
 
             Repeater {
-                model: BrightnessService.displays
+                model: BrightnessService.displays.length
 
                 delegate: BrightnessMonitorRow {
-                    required property var modelData
+                    required property int index
+
+                    readonly property var placeholderMonitor: ({
+                        id: "",
+                        name: "",
+                        type: "",
+                        available: false,
+                        brightness: 0,
+                        maximum: 1
+                    })
 
                     width: monitorColumn.width
-                    monitor: modelData
+                    monitor: BrightnessService.displays[index] || placeholderMonitor
 
                     onValueRequested: (displayId, value) => BrightnessService.setBrightness(displayId, value)
                 }

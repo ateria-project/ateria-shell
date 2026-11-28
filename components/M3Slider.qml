@@ -158,11 +158,10 @@ Slider {
         Behavior on position {
             enabled: root.animateValueChanges && !root.pressed
 
-            SpringAnimation {
-                spring: Motion.fastSpatialSpring
-                damping: Motion.fastSpatialDamping
-                mass: Motion.fastSpatialMass
-                epsilon: Motion.fastSpatialEpsilon
+            NumberAnimation {
+                duration: Motion.durationMedium
+                easing.type: Motion.easingStandardDecelerate
+                easing.bezierCurve: Motion.standardDecelerateCurve
             }
         }
     }
