@@ -143,7 +143,7 @@ T.Switch {
 
                     Behavior on strokeColor {
                         ColorAnimation {
-                            duration: Motion.durationExpressiveSlowEffects
+                            duration: Motion.durationShort
                             easing.type: Motion.easingExpressiveSlowEffects
                             easing.bezierCurve: Motion.expressiveSlowEffectsCurve
                         }
@@ -156,12 +156,27 @@ T.Switch {
                 Behavior on end2 { M3SwitchGeometryAnimation {} }
             }
 
-            Behavior on x { M3SwitchGeometryAnimation {} }
-            Behavior on width { M3SwitchGeometryAnimation {} }
+            Behavior on x {
+                SpringAnimation {
+                    spring: 6.0
+                    damping: 0.35
+                    mass: 1.0
+                    epsilon: 0.25
+                }
+            }
+
+            Behavior on width {
+                SpringAnimation {
+                    spring: 6.0
+                    damping: 0.35
+                    mass: 1.0
+                    epsilon: 0.25
+                }
+            }
 
             Behavior on color {
                 ColorAnimation {
-                    duration: Motion.durationExpressiveSlowEffects
+                    duration: Motion.durationShort
                     easing.type: Motion.easingExpressiveSlowEffects
                     easing.bezierCurve: Motion.expressiveSlowEffectsCurve
                 }
@@ -170,7 +185,7 @@ T.Switch {
 
         Behavior on color {
             ColorAnimation {
-                duration: Motion.durationExpressiveSlowEffects
+                duration: Motion.durationShort
                 easing.type: Motion.easingExpressiveSlowEffects
                 easing.bezierCurve: Motion.expressiveSlowEffectsCurve
             }
@@ -182,7 +197,7 @@ T.Switch {
     }
 
     component M3SwitchGeometryAnimation: PropertyAnimation {
-        duration: Motion.durationExpressiveFastSpatial
+        duration: 260
         easing.type: Motion.easingExpressiveFastSpatial
         easing.bezierCurve: Motion.expressiveFastSpatialCurve
     }
