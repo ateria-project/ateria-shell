@@ -2,7 +2,6 @@ pragma Singleton
 
 import QtQuick
 import qs.features.bar
-import qs.features.example
 import qs.features.launcher
 import qs.features.wallpaper
 import qs.platform.media
@@ -24,7 +23,6 @@ QtObject {
         let registrationSucceeded = true;
         registrationSucceeded = SettingsService.registerSchema("media", MediaSettings.schema) && registrationSucceeded;
         registrationSucceeded = SettingsService.registerSchema("notifications", NotificationSettings.schema) && registrationSucceeded;
-        registrationSucceeded = SettingsService.registerSchema("example", ExampleSettings.schema) && registrationSucceeded;
         registrationSucceeded = SettingsService.registerSchema("bar", BarSettings.schema) && registrationSucceeded;
         registrationSucceeded = SettingsService.registerSchema("launcher", LauncherSettings.schema) && registrationSucceeded;
         registrationSucceeded = SettingsService.registerSchema("wallpaper", WallpaperSettings.schema) && registrationSucceeded;

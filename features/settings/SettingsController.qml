@@ -8,7 +8,7 @@ QtObject {
     property string selectedNamespace: ""
 
     readonly property var categories: {
-        const preferredOrder = ["wallpaper", "bar", "media", "launcher", "example"];
+        const preferredOrder = ["wallpaper", "bar", "media", "launcher"];
         const names = Object.keys(SettingsService.schema);
         names.sort((left, right) => {
             const leftIndex = preferredOrder.indexOf(left);
@@ -35,8 +35,6 @@ QtObject {
             return { namespaceName, title: qsTr("Media"), description: qsTr("Players, filters, visibility"), icon: "volume_up", tone: "secondary", group: "shell" };
         case "launcher":
             return { namespaceName, title: qsTr("Apps"), description: qsTr("Launcher search and history"), icon: "apps", tone: "tertiary", group: "shell" };
-        case "example":
-            return { namespaceName, title: qsTr("Example feature"), description: qsTr("Example controls"), icon: "experiment", tone: "error", group: "advanced" };
         default:
             return {
                 namespaceName,
