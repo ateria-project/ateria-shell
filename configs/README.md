@@ -19,7 +19,7 @@ Run all commands from the Ateria project root.
 
 | Component | Managed files | User-owned files | Generated color file |
 | --- | --- | --- | --- |
-| Niri | `config.kdl`, `ateria/defaults.kdl`, `ateria/binds.kdl`, `ateria/rules.kdl` | `applications.kdl`, `user-config.kdl` | `ateria/colors.kdl` |
+| Niri | `config.kdl`, `ateria/defaults.kdl`, `ateria/ateria-env.sh`, `ateria/binds.kdl`, `ateria/rules.kdl` | `applications.kdl`, `user-config.kdl` | `ateria/colors.kdl` |
 | Kitty | `kitty.conf` | `user.conf` | `ateria-colors.conf` |
 | Foot | `foot.ini`, `ateria/defaults.ini`, `ateria/apply-colors` | `user.ini` | `ateria-colors.ini`, `foot-sequences` |
 | Fish | `config.fish` | `user.fish`, `user-colors.fish` | `ateria-colors.fish` |
@@ -85,6 +85,17 @@ Niri uses this order:
 4. `ateria/binds.kdl`
 5. `ateria/rules.kdl`
 6. `user-config.kdl`
+
+### Runtime environment
+
+The Niri preset also installs `ateria/ateria-env.sh`, which `defaults.kdl` sources
+before starting Quickshell. It bounds Quickshell's jemalloc arenas, selects the
+low-power VAAPI path when available, and limits GLVND to the EGL driver for the
+compositor's GPU so unused GPUs do not cost memory. If the GPU or GLVND driver
+cannot be identified, it leaves the system default in place. Set
+`ATERIA_EGL_VENDOR=none`, or set `__EGL_VENDOR_LIBRARY_FILENAMES` yourself, to
+disable the EGL selection. Applications launched from the launcher always get
+the unrestricted environment.
 
 ### Niri application keybinds
 

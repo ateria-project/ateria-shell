@@ -20,6 +20,11 @@ destination = "{config_home}/niri/ateria/defaults.kdl"
 strategy = "managed"
 
 [[components.files]]
+source = "niri/ateria/ateria-env.sh"
+destination = "{config_home}/niri/ateria/ateria-env.sh"
+strategy = "managed"
+
+[[components.files]]
 source = "niri/ateria/binds.kdl"
 destination = "{config_home}/niri/ateria/binds.kdl"
 strategy = "managed"

@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Wayland
 import qs.components
 import qs.features.launcher.components
@@ -45,12 +46,41 @@ TransientPanelWindow {
         SurfaceController.closeLauncher();
     }
 
+    // tools/ateria-shell applies shell-specific tuning (one EGL vendor and a
+    // bounded jemalloc arena set). Do not leak that tuning into applications
+    // the user launches, since they may legitimately want the other GPU or
+    // their own allocator settings. Matching DesktopEntry::execute() also
+    // preserves its detached launch semantics.
+    readonly property bool runtimeTuningApplied: {
+        const egl = String(Quickshell.env("ATERIA_EGL_VENDOR_APPLIED") ?? "");
+        const malloc = String(Quickshell.env("ATERIA_MALLOC_CONF_APPLIED") ?? "");
+        return egl === "1" || malloc === "1";
+    }
+
     function launch(desktopEntry) {
         if (!desktopEntry)
             return;
 
         LauncherSettings.recordLaunch(desktopEntry);
         SurfaceController.closeLauncher();
+
+        if (root.runtimeTuningApplied
+                && desktopEntry.command
+                && desktopEntry.command.length > 0) {
+            const command = [
+                "sh", "-c",
+                'wd=$1; shift; if [ -n "$wd" ]; then cd "$wd" || exit 1; fi; '
+                    + 'if [ "${ATERIA_EGL_VENDOR_APPLIED:-}" = 1 ]; then unset __EGL_VENDOR_LIBRARY_FILENAMES; fi; '
+                    + 'if [ "${ATERIA_MALLOC_CONF_APPLIED:-}" = 1 ]; then unset MALLOC_CONF; fi; '
+                    + 'unset ATERIA_EGL_VENDOR_APPLIED ATERIA_MALLOC_CONF_APPLIED; exec "$@"',
+                "ateria-launcher", desktopEntry.workingDirectory ?? ""
+            ];
+            for (let index = 0; index < desktopEntry.command.length; ++index)
+                command.push(desktopEntry.command[index]);
+            Quickshell.execDetached(command);
+            return;
+        }
+
         desktopEntry.execute();
     }
 

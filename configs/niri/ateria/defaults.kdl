@@ -4,12 +4,10 @@
 
 // Portable defaults for the Ateria desktop.
 
-// Keep Quickshell's jemalloc arenas bounded so long-lived shell sessions do not
-// accumulate freed pages across the shell's worker threads.
-
-// Prefer the low-power VAAPI path on Intel and AMD render nodes. Qt falls back
-// to its normal backend on systems where one is not present.
-spawn-at-startup "sh" "-c" "for node in /sys/class/drm/renderD*/device/driver; do [ -e \"$node\" ] || continue; driver=$(readlink -f \"$node\") || continue; driver=${driver##*/}; case \"$driver\" in amdgpu|i915|xe) export QT_FFMPEG_DECODING_HW_DEVICE_TYPES=vaapi QT_FFMPEG_ENCODING_HW_DEVICE_TYPES=vaapi; break;; esac; done; export MALLOC_CONF=\"${MALLOC_CONF:-narenas:2,background_thread:true,dirty_decay_ms:1000,muzzy_decay_ms:1000}\"; exec qs"
+// Shared runtime tuning: bounded jemalloc arenas, the low-power VAAPI path, and
+// the EGL vendor for the compositor's GPU. The script leaves the system default
+// in place when it cannot identify a matching GPU or GLVND driver.
+spawn-at-startup "sh" "-c" "f=\"${XDG_CONFIG_HOME:-$HOME/.config}/niri/ateria/ateria-env.sh\"; if [ -r \"$f\" ]; then . \"$f\"; fi; exec qs"
 
 input {
     keyboard {
