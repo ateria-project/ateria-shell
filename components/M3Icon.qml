@@ -19,7 +19,7 @@ Text {
     verticalAlignment: Text.AlignVCenter
     maximumLineCount: 1
     wrapMode: Text.NoWrap
-    font.family: IconFont.family
+    font.family: "Material Symbols Outlined"
     font.pixelSize: root.size
     font.features: {
         "liga": 1
