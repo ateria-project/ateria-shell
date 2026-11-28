@@ -34,6 +34,8 @@ Singleton {
     property string imageCacheWaitSource: ""
     property bool paletteLoaded: false
     property var paletteEntries: []
+    property string activePaletteSource: ""
+    property bool externalPaletteRefreshPending: false
     property var pendingPaletteEntry: null
     property var paletteSaveQueue: []
     property var inFlightPaletteSave: null
@@ -64,6 +66,7 @@ Singleton {
         if (restoreFingerprintProcess.running)
             restoreFingerprintProcess.signal(9);
         root.pendingPaletteEntry = null;
+        root.externalPaletteRefreshPending = false;
         root.waitingForThumbnail = false;
         root.thumbnailWaitSource = "";
         root.waitingForImageCache = false;
@@ -154,11 +157,15 @@ Singleton {
                                                                && candidate.source !== entry.source);
         entries.unshift(entry);
         root.paletteEntries = entries.slice(0, root.paletteEntryLimit);
+        // Matugen just rewrote the compositor and terminal color files for
+        // this source, so it is now the one represented by external outputs.
+        root.activePaletteSource = entry.source;
         root.writePalette();
     }
 
     function loadPalette(text: string): void {
         const entries = [];
+        let activeSource = "";
         const trimmed = String(text ?? "").trim();
         if (trimmed.length > 0) {
             try {
@@ -166,6 +173,9 @@ Singleton {
                 if (document !== null && typeof document === "object"
                         && document.version === root.paletteVersion
                         && Array.isArray(document.entries)) {
+                    if (typeof document.activeSource === "string")
+                        activeSource = document.activeSource;
+
                     for (const candidate of document.entries) {
                         if (candidate === null || typeof candidate !== "object"
                                 || typeof candidate.source !== "string"
@@ -193,6 +203,7 @@ Singleton {
         }
 
         root.paletteEntries = entries;
+        root.activePaletteSource = activeSource;
         root.paletteLoaded = true;
         if (root.requestedPath.length > 0 && !MatugenRunner.running) {
             if (root.paletteEntryFor(root.requestedPath) !== null)
@@ -215,6 +226,7 @@ Singleton {
     function writePalette(): void {
         root.pendingPaletteText = JSON.stringify({
             "version": root.paletteVersion,
+            "activeSource": root.activePaletteSource,
             "entries": root.paletteEntries
         }, null, 2) + "\n";
 
@@ -312,8 +324,9 @@ Singleton {
             return;
         }
 
-        if (root.restorePalette())
+        if (!root.externalPaletteRefreshPending && root.restorePalette())
             return;
+        root.externalPaletteRefreshPending = false;
 
         if (root.isVideoPath(root.requestedPath)) {
             root.waitingForThumbnail = true;
@@ -467,7 +480,14 @@ Singleton {
                 return;
 
             if (exitCode === 0 && restoreFingerprintOutput.text.trim() === entry.fingerprint) {
-                root.applyCachedPalette(entry);
+                if (root.applyCachedPalette(entry)
+                        && entry.source !== root.activePaletteSource) {
+                    // The shell can use the cached scheme immediately, but the
+                    // compositor and terminal files still belong to a different
+                    // wallpaper. Regenerate those in the background.
+                    root.externalPaletteRefreshPending = true;
+                    requestTimer.restart();
+                }
                 return;
             }
             requestTimer.restart();

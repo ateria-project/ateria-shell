@@ -66,6 +66,11 @@ Template edits invalidate the cache, so installed color files are never left
 on an older template. The cache keeps the last few wallpapers, which also
 avoids regenerating when switching back.
 
+The source represented by the external color files is recorded separately. If
+a cached wallpaper is not that source, its scheme is applied to the shell
+immediately while Matugen refreshes the compositor and terminal files in the
+background. This keeps Niri borders consistent without delaying the shell.
+
 Existing manifest fingerprints are read at nanosecond precision. A compatible
 cached video is adopted even when it was created by a different cache-version
 number, provided its source fingerprint, display profile, output file size,
