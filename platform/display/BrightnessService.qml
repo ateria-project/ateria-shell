@@ -35,6 +35,13 @@ Singleton {
     // Brightness is only consumed by Quick Settings, so polling is suspended
     // while that panel is closed.
     property bool viewActive: false
+    // Incremented on every user write. Reads record the epoch they were
+    // started with; a read whose epoch is behind the latest write predates
+    // the user's intent and must not overwrite the optimistic value, or the
+    // slider jumps back to the old hardware brightness.
+    property int writeEpoch: 0
+    property int internalReadEpoch: 0
+    property int externalQueryEpoch: 0
     property var pendingInternalWrite: null
     property var pendingExternalWrites: ({})
     property var externalQueryQueue: []
@@ -209,6 +216,7 @@ Singleton {
         if (internalReadProcess.running || internalWriteProcess.running)
             return;
 
+        root.internalReadEpoch = root.writeEpoch;
         internalReadProcess.exec(["brightnessctl", "--machine-readable", "--class", "backlight", "info"]);
     }
 
@@ -367,6 +375,7 @@ Singleton {
         const job = root.externalQueryQueue[0];
         root.externalQueryQueue = root.externalQueryQueue.slice(1);
         root.currentExternalQuery = job;
+        root.externalQueryEpoch = root.writeEpoch;
         externalQueryProcess.exec(["ddcutil", "--display", String(job.display), "getvcp", "10", "--terse"]);
     }
 
@@ -376,23 +385,32 @@ Singleton {
         if (job === null)
             return;
 
-        const valueMatch = String(standardOutput).match(/VCP\s+10\s+C\s+(\d+)\s+(\d+)/);
-        if (exitCode === 0 && valueMatch !== null) {
-            const current = Number(valueMatch[1]);
-            const maximum = Number(valueMatch[2]);
-            if (isFinite(current) && isFinite(maximum) && maximum > 0)
+        // A query that started before the latest write (or while writes are
+        // still pending) reports stale hardware brightness; keep the
+        // optimistic value and let the post-write refresh reconcile.
+        const stale = root.externalQueryEpoch !== root.writeEpoch
+            || Object.keys(root.pendingExternalWrites).length > 0
+            || root.externalWriteQueue.length > 0;
+
+        if (!stale) {
+            const valueMatch = String(standardOutput).match(/VCP\s+10\s+C\s+(\d+)\s+(\d+)/);
+            if (exitCode === 0 && valueMatch !== null) {
+                const current = Number(valueMatch[1]);
+                const maximum = Number(valueMatch[2]);
+                if (isFinite(current) && isFinite(maximum) && maximum > 0)
+                    root.patchExternalDisplay(job.id, {
+                        "brightness": root.clamp(current / maximum, 0, 1),
+                        "current": current,
+                        "maximum": maximum,
+                        "available": true
+                    });
+            } else {
                 root.patchExternalDisplay(job.id, {
-                    "brightness": root.clamp(current / maximum, 0, 1),
-                    "current": current,
-                    "maximum": maximum,
-                    "available": true
+                    "available": false
                 });
-        } else {
-            root.patchExternalDisplay(job.id, {
-                "available": false
-            });
-            const message = root.errorMessage("Could not query display " + job.display, standardError);
-            root.reportError("ddcutil", message);
+                const message = root.errorMessage("Could not query display " + job.display, standardError);
+                root.reportError("ddcutil", message);
+            }
         }
         if (root.externalWriteQueue.length > 0)
             root.runNextExternalWrite();
@@ -490,6 +508,7 @@ Singleton {
     function setInternalBrightness(display, value: real): bool {
         const brightness = Math.round(root.clamp(value, root.minimumInternalBrightness, 1) * 1000) / 1000;
         const rawValue = Math.round(brightness * display.maximum);
+        root.writeEpoch += 1;
         root.patchInternalDisplay(display.id, {
             "brightness": brightness,
             "current": rawValue
@@ -520,6 +539,7 @@ Singleton {
     function setExternalBrightness(display, value: real): bool {
         const brightness = Math.round(root.clamp(value, root.minimumExternalBrightness, 1) * 1000) / 1000;
         const rawValue = Math.round(brightness * display.maximum);
+        root.writeEpoch += 1;
         root.patchExternalDisplay(display.id, {
             "brightness": brightness,
             "current": rawValue
@@ -594,10 +614,19 @@ Singleton {
         id: internalReadProcess
 
         onExited: (exitCode, exitStatus) => {
+            // A read that started before the latest write, or while one is
+            // still pending, reports the old hardware brightness. Applying
+            // it would snap the slider back to the previous value; the
+            // post-write refresh re-reads the settled hardware state.
+            const stale = root.internalReadEpoch !== root.writeEpoch
+                || root.pendingInternalWrite !== null;
+
             if (exitCode === 0) {
-                root.parseInternalDisplays(internalReadOutput.text);
+                if (!stale)
+                    root.parseInternalDisplays(internalReadOutput.text);
             } else {
-                root.internalDisplays = [];
+                if (!stale)
+                    root.internalDisplays = [];
                 const message = String(internalReadError.text).trim();
                 if (message.length > 0)
                     root.reportError("brightnessctl", message);
