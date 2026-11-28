@@ -107,6 +107,7 @@ PanelWindow {
         id: clockWidget
         anchors.centerIn: parent
         screen: window.screen
+        showBackgroundPill: BarSettings.showClockBackground
     }
 
     Row {

@@ -44,6 +44,14 @@ QtObject {
                 description: qsTr("Keeps the system tray expanded across shell restarts."),
                 group: "bar",
                 order: 25
+            },
+            "showClockBackground": {
+                type: "bool",
+                defaultValue: false,
+                label: qsTr("Show Clock Background"),
+                description: qsTr("Keeps a background pill behind the date and time, like the status area."),
+                group: "bar",
+                order: 30
             }
         })
 
@@ -52,6 +60,7 @@ QtObject {
     readonly property bool showWorkspaceNumbersOnHover: SettingsService.value("bar", "showWorkspaceNumbersOnHover")
     readonly property bool useAppIcons: SettingsService.value("bar", "useAppIcons")
     readonly property bool systemTrayExpanded: SettingsService.value("bar", "systemTrayExpanded")
+    readonly property bool showClockBackground: SettingsService.value("bar", "showClockBackground")
 
     function setCombineWorkspacesAndWindows(value) {
         return SettingsService.setValue("bar", "combineWorkspacesAndWindows", value);
@@ -91,5 +100,13 @@ QtObject {
 
     function resetSystemTrayExpanded() {
         return SettingsService.reset("bar", "systemTrayExpanded");
+    }
+
+    function setShowClockBackground(value) {
+        return SettingsService.setValue("bar", "showClockBackground", value);
+    }
+
+    function resetShowClockBackground() {
+        return SettingsService.reset("bar", "showClockBackground");
     }
 }

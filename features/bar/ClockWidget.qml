@@ -10,6 +10,9 @@ AbstractButton {
 
     property var screen: null
 
+    // Keeps the background pill visible at rest, matching the status area.
+    property bool showBackgroundPill: false
+
     implicitWidth: label.implicitWidth + 24
     implicitHeight: 28
 
@@ -26,7 +29,9 @@ AbstractButton {
         radius: Metrics.radiusFull
         color: SurfaceController.calendarOpen
             ? Theme.scheme.secondaryContainer
-            : ((root.hovered || root.down || root.visualFocus) ? Theme.scheme.surfaceContainer : "transparent")
+            : ((root.hovered || root.down || root.visualFocus || root.showBackgroundPill)
+                ? Theme.scheme.surfaceContainer
+                : "transparent")
 
         Rectangle {
             anchors.fill: parent
