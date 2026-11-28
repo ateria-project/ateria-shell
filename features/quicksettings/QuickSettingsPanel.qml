@@ -6,6 +6,7 @@ import qs.components
 import qs.features.bluetooth
 import qs.features.quicksettings.pages
 import qs.platform.bluetooth
+import qs.platform.display
 import qs.shell
 import qs.theme
 
@@ -46,6 +47,11 @@ TransientPanelWindow {
     // state independent from the requested open state prevents an eventual
     // exit transition from being relaid out underneath itself.
     onFullyClosed: navigationController.reset()
+
+    // Brightness polling is only useful while the panel is visible.
+    onOpenChanged: BrightnessService.setViewActive(root.open, root.screen)
+    Component.onCompleted: BrightnessService.setViewActive(root.open, root.screen)
+    Component.onDestruction: BrightnessService.setViewActive(false)
 
     anchors {
         top: true

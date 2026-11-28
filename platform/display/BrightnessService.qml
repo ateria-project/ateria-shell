@@ -32,6 +32,9 @@ Singleton {
     readonly property bool busy: internalReadProcess.running || internalWriteProcess.running || externalDetectProcess.running || externalQueryProcess.running || externalWriteProcess.running
     property string lastError: ""
     // Internal state
+    // Brightness is only consumed by Quick Settings, so polling is suspended
+    // while that panel is closed.
+    property bool viewActive: false
     property var pendingInternalWrite: null
     property var pendingExternalWrites: ({})
     property var externalQueryQueue: []
@@ -176,6 +179,24 @@ Singleton {
 
     function patchExternalDisplay(displayId: string, changes) {
         root.externalDisplays = root.patchDisplay(root.externalDisplays, displayId, changes);
+    }
+
+    // View lifecycle
+    function setViewActive(active, screen) {
+        const nextActive = Boolean(active);
+        if (root.viewActive === nextActive)
+            return;
+
+        root.viewActive = nextActive;
+        if (!nextActive)
+            return;
+
+        root.refreshInternal();
+        // Only probe DDC when the panel is actually showing an external
+        // display. Laptops with an internal panel avoid the expensive probe.
+        const display = root.displayForScreen(screen);
+        if (display === null || display === undefined || display.type === "external")
+            root.refreshExternal();
     }
 
     // Refreshing
@@ -665,14 +686,14 @@ Singleton {
 
     Timer {
         interval: Math.max(1000, root.refreshInterval)
-        running: root.refreshInterval > 0
+        running: root.viewActive && root.refreshInterval > 0
         repeat: true
         onTriggered: root.refreshInternal()
     }
 
     Timer {
         interval: Math.max(1000, root.externalRefreshInterval)
-        running: root.externalRefreshInterval > 0 && root.hasPotentialExternalScreen
+        running: root.viewActive && root.externalRefreshInterval > 0 && root.hasPotentialExternalScreen
         repeat: true
         onTriggered: root.refreshExternal()
     }
