@@ -92,6 +92,7 @@ PanelWindow {
             WorkspacesWidget {
                 view: window.workspaceView
                 showWorkspaceNumbersOnHover: BarSettings.showWorkspaceNumbersOnHover
+                alwaysShowWorkspaceNumbers: BarSettings.alwaysShowWorkspaceNumbers
                 onWorkspaceRequested: workspaceIndex => WorkspaceService.focusWorkspace(workspaceIndex, window.outputName)
             }
 
