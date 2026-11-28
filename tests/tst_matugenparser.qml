@@ -55,4 +55,34 @@ TestCase {
         verify(!result.valid);
         verify(result.error.startsWith("Invalid JSON:"));
     }
+
+    function test_acceptsStoredSchemes() {
+        const parsed = MatugenParser.parse(completeOutput());
+        const restored = MatugenParser.parseSchemes(parsed.light, parsed.dark);
+
+        verify(restored.valid);
+        compare(restored.light.primaryContainer, "#112233");
+        compare(restored.dark.onSurfaceVariant, "#ddeeff");
+    }
+
+    function test_rejectsStoredSchemeWithMissingRole() {
+        const parsed = MatugenParser.parse(completeOutput());
+        const light = Object.assign({}, parsed.light);
+        delete light.primary;
+
+        const restored = MatugenParser.parseSchemes(light, parsed.dark);
+
+        verify(!restored.valid);
+        verify(restored.error.includes("light"));
+    }
+
+    function test_rejectsStoredSchemeWithInvalidColor() {
+        const parsed = MatugenParser.parse(completeOutput());
+        const dark = Object.assign({}, parsed.dark);
+        dark.primary = "green";
+
+        const restored = MatugenParser.parseSchemes(parsed.light, dark);
+
+        verify(!restored.valid);
+    }
 }

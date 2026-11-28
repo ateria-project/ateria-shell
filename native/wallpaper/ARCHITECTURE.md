@@ -56,6 +56,16 @@ temporary preview files. If native thumbnail generation fails or times out,
 the existing color scheme remains in place and the normal generation error
 signal is emitted.
 
+Generated light and dark schemes are persisted in
+`$XDG_STATE_HOME/ateria/theme-palette.json`, keyed by the source image plus a
+fingerprint of the active generator's config and template inputs. A warm start
+applies the stored scheme immediately and skips the Matugen process and its
+reload hooks.
+
+Template edits invalidate the cache, so installed color files are never left
+on an older template. The cache keeps the last few wallpapers, which also
+avoids regenerating when switching back.
+
 Existing manifest fingerprints are read at nanosecond precision. A compatible
 cached video is adopted even when it was created by a different cache-version
 number, provided its source fingerprint, display profile, output file size,

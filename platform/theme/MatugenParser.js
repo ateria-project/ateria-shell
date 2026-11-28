@@ -54,6 +54,22 @@ function hasOwn(object, key) {
     return object !== null && object !== undefined && Object.prototype.hasOwnProperty.call(object, key);
 }
 
+function colorIsValid(value) {
+    return typeof value === "string" && /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(value);
+}
+
+function schemeIsValid(value) {
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+        return false;
+
+    for (const role of Object.keys(roleNames)) {
+        if (!hasOwn(value, role) || !colorIsValid(value[role]))
+            return false;
+    }
+
+    return true;
+}
+
 function scheme(colors, mode) {
     const result = {};
 
@@ -61,8 +77,7 @@ function scheme(colors, mode) {
         const matugenRole = roleNames[role];
         if (!hasOwn(colors, matugenRole)
                 || !hasOwn(colors[matugenRole], mode)
-                || typeof colors[matugenRole][mode].color !== "string"
-                || !/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(colors[matugenRole][mode].color))
+                || !colorIsValid(colors[matugenRole][mode].color))
             return { valid: false, error: "Missing or invalid color role: " + matugenRole + "." + mode };
 
         result[role] = colors[matugenRole][mode].color;
@@ -91,4 +106,13 @@ function parse(text) {
         return dark;
 
     return { valid: true, light: light.value, dark: dark.value };
+}
+
+function parseSchemes(light, dark) {
+    if (!schemeIsValid(light))
+        return { valid: false, error: "Cached light scheme is invalid" };
+    if (!schemeIsValid(dark))
+        return { valid: false, error: "Cached dark scheme is invalid" };
+
+    return { valid: true, light: light, dark: dark };
 }

@@ -105,12 +105,24 @@ Singleton {
         root.scheduleWallpaperVideoReconcile();
     }
 
+    function requestMatugen(): void {
+        if (!root.initialized || !SettingsService.ready)
+            return;
+        // Without an explicit selection, wait for the folder model rather than
+        // generating a palette for the bundled placeholder or a transient entry.
+        if (WallpaperSettings.selectedFile.length === 0
+                && wallpaperModel.status !== FolderListModel.Ready)
+            return;
+
+        MatugenService.request(root.source);
+    }
+
     function initialize() {
         if (root.initialized)
             return;
 
         root.initialized = true;
-        MatugenService.request(root.source);
+        root.requestMatugen();
         root.prepareCurrentImage();
         root.scheduleWallpaperVideoReconcile();
     }
@@ -129,8 +141,7 @@ Singleton {
     }
 
     onSourceChanged: {
-        if (root.initialized)
-            MatugenService.request(root.source);
+        root.requestMatugen();
         root.prepareCurrentImage();
         root.scheduleWallpaperVideoReconcile();
     }
@@ -165,8 +176,13 @@ Singleton {
         target: SettingsService
 
         function onReadyChanged(): void {
-            if (SettingsService.ready)
-                root.prepareCurrentImage();
+            if (!SettingsService.ready)
+                return;
+
+            // Initialize deliberately skipped the bundled placeholder source.
+            // Start from the real selection once it has been loaded.
+            root.requestMatugen();
+            root.prepareCurrentImage();
         }
     }
 
@@ -179,6 +195,7 @@ Singleton {
         }
 
         function onStatusChanged(): void {
+            root.requestMatugen();
             root.prepareCurrentImage();
             root.scheduleWallpaperVideoReconcile();
         }
