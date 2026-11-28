@@ -102,6 +102,8 @@ if [ "${ATERIA_SKIP_NATIVE_INSTALL:-0}" != "1" ]; then
 fi
 
 native_cache="$native_build_dir/CMakeCache.txt"
+build_stamp="$native_build_dir/.ateria-native-build"
+needs_build=0
 if [ ! -f "$native_cache" ] \
     || ! grep -q '^CMAKE_BUILD_TYPE:STRING=RelWithDebInfo$' "$native_cache" \
     || ! grep -q '^ATERIA_BUILD_TESTS:BOOL=OFF$' "$native_cache" \
@@ -117,9 +119,45 @@ if [ ! -f "$native_cache" ] \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DATERIA_BUILD_TESTS=OFF
     fi
+    needs_build=1
 fi
 
-cmake --build "$native_build_dir" --parallel --target ateria_native_modules
+# `cmake --build` costs a few hundred milliseconds even when nothing changed,
+# which is visible when the shell is launched from a terminal. Compare the
+# source tree with the last successful build instead and let the installer's
+# signature check handle the remaining no-op path.
+if [ "$needs_build" = 0 ] \
+    && { [ ! -f "$build_stamp" ] \
+        || { [ ! -f "$native_build_dir/Makefile" ] \
+            && [ ! -f "$native_build_dir/build.ninja" ]; }; }; then
+    needs_build=1
+fi
+
+if [ "$needs_build" = 0 ]; then
+    for module_spec in $module_specs; do
+        module_name=${module_spec%%:*}
+        target_name=${module_spec#*:}
+        if [ ! -f "$native_build_dir/$target_name/libateria_$target_name.so" ] \
+            || [ ! -f "$native_build_dir/qml/Ateria/$module_name/libateria_${target_name}plugin.so" ] \
+            || [ ! -f "$native_build_dir/qml/Ateria/$module_name/qmldir" ]; then
+            needs_build=1
+            break
+        fi
+    done
+fi
+
+if [ "$needs_build" = 0 ] \
+    && [ -n "$(find "$source_root/native" -type f \
+        \( -name '*.cpp' -o -name '*.h' -o -name '*.qml' \
+            -o -name '*.cmake' -o -name 'CMakeLists.txt' \) \
+        -newer "$build_stamp" -print -quit 2>/dev/null)" ]; then
+    needs_build=1
+fi
+
+if [ "$needs_build" = 1 ]; then
+    cmake --build "$native_build_dir" --parallel --target ateria_native_modules
+    touch "$build_stamp"
+fi
 
 if [ -n "$qml_install_dir" ]; then
     build_signature=$(module_build_signature "$qml_install_dir")

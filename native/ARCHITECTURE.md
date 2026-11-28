@@ -6,8 +6,9 @@ for Qt's standard QML module directory. Each installed module contains its
 generated plugin, backing library, `qmldir`, and type metadata. The plugin uses
 an `$ORIGIN` install RPATH, so it never depends on the checkout's build path.
 
-`tools/ateria-shell` performs an incremental release build and keeps two launch
-paths working:
+`tools/ateria-shell` performs an incremental release build, skipping
+`cmake --build` entirely when no native source is newer than the last
+successful build, and keeps two launch paths working:
 
 - the wrapper prepends the build tree to `QML_IMPORT_PATH`, so it always runs
   the binaries from the current checkout;
